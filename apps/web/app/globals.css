@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-slate-950 text-slate-100 antialiased;
+  background-image: radial-gradient(60rem 60rem at 80% -10%, rgba(16, 185, 129, 0.08), transparent),
+    radial-gradient(50rem 50rem at 0% 0%, rgba(59, 130, 246, 0.06), transparent);
+  background-attachment: fixed;
+}
+
+/* Numeric fields read LTR even inside an RTL layout */
+input[type='number'] {
+  direction: ltr;
+  text-align: right;
+}

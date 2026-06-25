@@ -1,0 +1,21 @@
+{
+  "name": "crypto-alert",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/core",
+    "apps/bridge",
+    "apps/web"
+  ],
+  "scripts": {
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "db:migrate": "npm run db:migrate -w core",
+    "db:generate": "npm run db:generate -w core",
+    "dev:core": "npm run dev -w core",
+    "dev:worker": "npm run worker -w core",
+    "dev:bridge": "npm run dev -w bridge",
+    "dev:web": "npm run dev -w web",
+    "test": "npm run test -w core"
+  }
+}

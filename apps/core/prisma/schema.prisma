@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String         @id @default(cuid())
+  email          String         @unique
+  passwordHash   String
+  plan           String         @default("free") // free | paid
+  telegramChatId String?
+  createdAt      DateTime       @default(now())
+  alerts         Alert[]
+  subscriptions  Subscription[]
+}
+
+model Alert {
+  id            String         @id @default(cuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  symbol        String // e.g. BTCUSDT
+  type          String // price | percent
+  direction     String // above | below
+  target        Decimal // price level, or percent threshold
+  percentBasis  String? // h24 | since_created  (percent only)
+  basePrice     Decimal? // price at creation    (since_created only)
+  repeat        String         @default("one_time") // one_time | recurring
+  status        String         @default("active") // active | triggered | paused | disarmed
+  channels      Json // [{ type: telegram|discord|email, identifier }]
+  fireCount     Int            @default(0)
+  lastFiredAt   DateTime?
+  createdAt     DateTime       @default(now())
+  notifications Notification[]
+
+  @@index([userId])
+  @@index([symbol])
+}
+
+model Subscription {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan         String    @default("paid")
+  status       String    @default("pending") // pending | active | expired
+  amount       Int // Rial
+  periodStart  DateTime?
+  periodEnd    DateTime?
+  zibalOrderId String    @unique
+  zibalTrackId String?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// Idempotency + observability for fired notifications
+model Notification {
+  id        String    @id @default(cuid())
+  alertId   String
+  alert     Alert     @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  fireSeq   Int
+  channel   String // telegram | discord | email
+  status    String    @default("pending") // pending | sent | failed
+  error     String?
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+
+  @@unique([alertId, fireSeq, channel])
+  @@index([alertId])
+}
+
+// One-time codes for linking a Telegram chat to a user
+model TelegramLink {
+  code      String    @id
+  userId    String
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+}
