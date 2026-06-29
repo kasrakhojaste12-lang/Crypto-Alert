@@ -8,3 +8,8 @@ dist/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Playwright / screenshot artifacts
+.playwright-mcp/
+/login-captcha.png
+/landing-*.png
