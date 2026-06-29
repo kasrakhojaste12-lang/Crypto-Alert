@@ -1,4 +1,4 @@
-# هشدار قیمت — Persian Crypto Price-Alert Service
+# الرت کی (Alert Key) — Persian Crypto Price-Alert Service
 
 A localized, lower-cost alternative to TradingView alerts for Iranian users. Set **price** and **percent-change** alerts on any Binance trading pair and get notified the instant the condition is met — via **Telegram or Discord** (email channel temporarily disabled; planned for later). Persian, fully RTL. Free tier of 3 alerts; more via a **Zibal** subscription.
 

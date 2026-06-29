@@ -5,7 +5,7 @@ import './globals.css'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'هشدار قیمت ارز دیجیتال',
+  title: 'الرت کی — هشدار قیمت ارز دیجیتال',
   description: 'هشدارهای قیمت و درصد تغییر برای هر جفت‌ارز، با اعلان تلگرام، دیسکورد و ایمیل',
 }
 

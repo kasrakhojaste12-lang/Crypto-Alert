@@ -14,11 +14,11 @@ export function buildMessage(j: NotifyJob): { title: string; body: string } {
   }
 
   const body =
-    `🔔 هشدار قیمت\n\n` +
+    `🔔 الرت کی\n\n` +
     `نماد: ${j.symbol}\n` +
     `شرط: ${condition}\n` +
     `قیمت فعلی: ${j.price}\n` +
     `زمان: ${time}`
 
-  return { title: `هشدار قیمت ${j.symbol}`, body }
+  return { title: `الرت کی — ${j.symbol}`, body }
 }

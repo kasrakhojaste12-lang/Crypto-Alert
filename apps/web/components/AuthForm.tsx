@@ -39,7 +39,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="text-3xl mb-2">⚡</div>
-          <h1 className="text-2xl font-bold text-brand">هشدار قیمت ارز دیجیتال</h1>
+          <h1 className="text-2xl font-bold text-brand">الرت کی</h1>
           <p className="text-slate-400 text-sm mt-1">
             {isLogin ? 'به حساب خود وارد شوید' : 'یک حساب جدید بسازید'}
           </p>

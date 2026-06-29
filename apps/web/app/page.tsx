@@ -23,7 +23,7 @@ export default function Home() {
     <main className="min-h-screen">
       <header className="mx-auto max-w-3xl px-4">
         <div className="h-14 flex items-center justify-between">
-          <span className="font-bold text-brand whitespace-nowrap">⚡ هشدار قیمت</span>
+          <span className="font-bold text-brand whitespace-nowrap">⚡ الرت کی</span>
           <Link href="/login" className="text-sm text-slate-400 hover:text-white transition">
             ورود
           </Link>
@@ -84,7 +84,7 @@ export default function Home() {
       </section>
 
       <footer className="mx-auto max-w-3xl px-4 pb-10 text-center text-xs text-slate-600">
-        ⚡ هشدار قیمت ارز دیجیتال
+        ⚡ الرت کی — هشدار قیمت ارز دیجیتال
       </footer>
     </main>
   )
