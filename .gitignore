@@ -5,3 +5,6 @@ dist/
 .next/
 *.log
 .playwright-mcp/
+
+# TypeScript incremental build info
+*.tsbuildinfo
