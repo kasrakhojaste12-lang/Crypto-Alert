@@ -1,0 +1,94 @@
+# Production stack — single VPS, all services. Bring up with:
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Reads ./.env for both ${...} interpolation and per-service env_file.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  # One-shot: apply Prisma migrations, then exit. core/worker wait for success.
+  migrate:
+    build: { context: ., dockerfile: Dockerfile }
+    command: npx prisma migrate deploy --schema apps/core/prisma/schema.prisma
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  core:
+    build: { context: ., dockerfile: Dockerfile }
+    restart: unless-stopped
+    command: npm run start -w core
+    env_file: .env
+    environment:
+      NODE_ENV: production
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_started }
+    expose: ["4000"]
+
+  worker:
+    build: { context: ., dockerfile: Dockerfile }
+    restart: unless-stopped
+    command: npm run start:worker -w core
+    env_file: .env
+    environment:
+      NODE_ENV: production
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_started }
+
+  bridge:
+    build: { context: ., dockerfile: Dockerfile }
+    restart: unless-stopped
+    command: npm run start -w bridge
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      CORE_BASE_URL: http://core:4000
+    expose: ["4100"]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    restart: unless-stopped
+    expose: ["3000"]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on: [web, core, bridge]
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:
+  caddyconfig:

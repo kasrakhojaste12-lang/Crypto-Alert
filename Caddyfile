@@ -1,0 +1,21 @@
+# Reverse proxy + automatic HTTPS (Let's Encrypt). One domain, path-based:
+#   /bridge/*  -> bridge  (prefix stripped: /bridge/callback -> /callback)
+#   /api/*     -> core    (prefix preserved: core routes are /api/...)
+#   everything else -> web
+# Same-origin web+API means the sameSite=lax auth cookie works with no CORS.
+# handle blocks are sorted by specificity, so order here is not significant.
+{$DOMAIN} {
+	encode gzip
+
+	handle_path /bridge/* {
+		reverse_proxy bridge:4100
+	}
+
+	handle /api/* {
+		reverse_proxy core:4000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}
