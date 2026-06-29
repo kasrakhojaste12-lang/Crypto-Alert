@@ -2,16 +2,18 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
+import { useT } from '@/lib/i18n'
+import { LangToggle } from '@/components/LangToggle'
 import type { User } from '@/lib/useUser'
 
-const links = [
-  { href: '/dashboard', label: 'هشدارها' },
-  { href: '/channels', label: 'کانال‌ها' },
-  { href: '/billing', label: 'اشتراک' },
-  { href: '/settings', label: 'تنظیمات' },
-]
-
 function NavLinks({ path }: { path: string }) {
+  const t = useT()
+  const links = [
+    { href: '/dashboard', label: t('هشدارها', 'Alerts') },
+    { href: '/channels', label: t('کانال‌ها', 'Channels') },
+    { href: '/billing', label: t('اشتراک', 'Subscription') },
+    { href: '/settings', label: t('تنظیمات', 'Settings') },
+  ]
   return (
     <>
       {links.map((l) => (
@@ -32,6 +34,7 @@ function NavLinks({ path }: { path: string }) {
 export function Nav({ user }: { user: User }) {
   const path = usePathname()
   const router = useRouter()
+  const t = useT()
 
   async function logout() {
     await api('/api/auth/logout', { method: 'POST' })
@@ -48,15 +51,16 @@ export function Nav({ user }: { user: User }) {
             <NavLinks path={path} />
           </nav>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <LangToggle />
             <span
               className={`text-xs px-2.5 py-1 rounded-full whitespace-nowrap ${
                 user.plan === 'paid' ? 'bg-brand/20 text-brand' : 'bg-slate-800 text-slate-400'
               }`}
             >
-              {user.plan === 'paid' ? 'اشتراک فعال' : 'رایگان'}
+              {user.plan === 'paid' ? t('اشتراک فعال', 'Active') : t('رایگان', 'Free')}
             </span>
             <button onClick={logout} className="text-sm text-slate-400 hover:text-rose-400 transition">
-              خروج
+              {t('خروج', 'Logout')}
             </button>
           </div>
         </div>

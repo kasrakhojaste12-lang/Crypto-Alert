@@ -6,14 +6,18 @@ export function baseOf(symbol: string): string {
   return symbol
 }
 
-export const faNum = (n: number | string, opts?: Intl.NumberFormatOptions) =>
-  new Intl.NumberFormat('fa-IR', opts).format(Number(n))
+export type Lang = 'fa' | 'en'
+const LOCALE: Record<Lang, string> = { fa: 'fa-IR', en: 'en-US' }
 
-export const faPrice = (n: number | string) =>
-  new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 8 }).format(Number(n))
+// fa -> Persian digits, en -> Latin digits.
+export const fmtNum = (n: number | string, lang: Lang, opts?: Intl.NumberFormatOptions) =>
+  new Intl.NumberFormat(LOCALE[lang], opts).format(Number(n))
+
+export const fmtPrice = (n: number | string, lang: Lang) =>
+  new Intl.NumberFormat(LOCALE[lang], { maximumFractionDigits: 8 }).format(Number(n))
 
 // Rial -> Toman, formatted
-export const toman = (rial: number) => faNum(Math.round(rial / 10))
+export const toman = (rial: number, lang: Lang) => fmtNum(Math.round(rial / 10), lang)
 
 export interface AlertShape {
   symbol: string
@@ -25,22 +29,40 @@ export interface AlertShape {
   status: string
 }
 
-// Persian, human-readable description of an alert condition.
-export function describeAlert(a: AlertShape): string {
+// Human-readable description of an alert condition, in the active language.
+export function describeAlert(a: AlertShape, lang: Lang): string {
+  if (lang === 'en') {
+    const dir = a.direction === 'above' ? 'above' : 'below'
+    if (a.type === 'price') return `Price ${dir} ${fmtPrice(a.target, lang)}`
+    const basis = a.percentBasis === 'h24' ? '24h change' : 'change since created'
+    return `${basis} ${dir} ${fmtNum(a.target, lang)}%`
+  }
   const dir = a.direction === 'above' ? 'بالاتر از' : 'پایین‌تر از'
-  if (a.type === 'price') return `قیمت ${dir} ${faPrice(a.target)}`
+  if (a.type === 'price') return `قیمت ${dir} ${fmtPrice(a.target, lang)}`
   const basis = a.percentBasis === 'h24' ? 'تغییر ۲۴ ساعته' : 'تغییر از زمان ایجاد'
-  return `${basis} ${dir} ${faNum(a.target)}٪`
+  return `${basis} ${dir} ${fmtNum(a.target, lang)}٪`
 }
 
-export const STATUS_FA: Record<string, { label: string; cls: string }> = {
-  active: { label: 'فعال', cls: 'bg-brand/15 text-brand' },
-  disarmed: { label: 'در انتظار بازگشت', cls: 'bg-amber-500/15 text-amber-400' },
-  triggered: { label: 'اجرا شده', cls: 'bg-slate-700 text-slate-300' },
-  paused: { label: 'متوقف', cls: 'bg-slate-700 text-slate-400' },
+const STATUS_CLS: Record<string, string> = {
+  active: 'bg-brand/15 text-brand',
+  disarmed: 'bg-amber-500/15 text-amber-400',
+  triggered: 'bg-slate-700 text-slate-300',
+  paused: 'bg-slate-700 text-slate-400',
+}
+const STATUS_LABEL: Record<string, { fa: string; en: string }> = {
+  active: { fa: 'فعال', en: 'Active' },
+  disarmed: { fa: 'در انتظار بازگشت', en: 'Waiting to re-arm' },
+  triggered: { fa: 'اجرا شده', en: 'Triggered' },
+  paused: { fa: 'متوقف', en: 'Paused' },
+}
+export function statusInfo(status: string, lang: Lang): { label: string; cls: string } {
+  return { label: STATUS_LABEL[status]?.[lang] ?? status, cls: STATUS_CLS[status] ?? 'bg-slate-700 text-slate-300' }
 }
 
-export const REPEAT_FA: Record<string, string> = {
-  one_time: 'یک‌بار',
-  recurring: 'تکرارشونده',
+const REPEAT_LABEL: Record<string, { fa: string; en: string }> = {
+  one_time: { fa: 'یک‌بار', en: 'One-time' },
+  recurring: { fa: 'تکرارشونده', en: 'Recurring' },
+}
+export function repeatLabel(repeat: string, lang: Lang): string {
+  return REPEAT_LABEL[repeat]?.[lang] ?? repeat
 }

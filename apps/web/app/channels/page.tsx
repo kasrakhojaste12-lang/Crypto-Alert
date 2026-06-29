@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { api } from '@/lib/api'
 import { useUser } from '@/lib/useUser'
+import { useT } from '@/lib/i18n'
 import { Shell } from '@/components/Shell'
 
 export default function ChannelsPage() {
@@ -14,6 +15,7 @@ export default function ChannelsPage() {
 
 function Channels() {
   const { user, mutate } = useUser()
+  const t = useT()
   const [link, setLink] = useState<{ code: string; url: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -28,37 +30,41 @@ function Channels() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">کانال‌های اعلان</h1>
+      <h1 className="text-xl font-bold">{t('کانال‌های اعلان', 'Notification channels')}</h1>
 
       {/* Telegram */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xl">✈️</span>
-            <span className="font-semibold">تلگرام</span>
+            <span className="font-semibold">{t('تلگرام', 'Telegram')}</span>
           </div>
           <span
             className={`text-xs px-2.5 py-1 rounded-full ${
               user?.telegramLinked ? 'bg-brand/20 text-brand' : 'bg-slate-800 text-slate-400'
             }`}
           >
-            {user?.telegramLinked ? 'متصل' : 'متصل نشده'}
+            {user?.telegramLinked ? t('متصل', 'Connected') : t('متصل نشده', 'Not connected')}
           </span>
         </div>
 
         {user?.telegramLinked ? (
-          <p className="text-sm text-slate-400">حساب تلگرام شما متصل است و هشدارها را دریافت می‌کنید.</p>
+          <p className="text-sm text-slate-400">
+            {t('حساب تلگرام شما متصل است و هشدارها را دریافت می‌کنید.', "Your Telegram is connected and you'll receive alerts.")}
+          </p>
         ) : (
           <>
             <p className="text-sm text-slate-400">
-              برای اتصال، روی دکمه بزنید و در تلگرام دستور <span dir="ltr">/start</span> را برای ربات ارسال کنید.
+              {t('برای اتصال، روی دکمه بزنید و در تلگرام دستور ', 'To connect, tap the button and send ')}
+              <span dir="ltr">/start</span>
+              {t(' را برای ربات ارسال کنید.', ' to the bot in Telegram.')}
             </p>
             <button
               onClick={makeLink}
               disabled={busy}
               className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-brand-dark disabled:opacity-50"
             >
-              {busy ? '...' : 'ساخت لینک اتصال'}
+              {busy ? '...' : t('ساخت لینک اتصال', 'Create connection link')}
             </button>
             {link && (
               <div className="rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm space-y-2">
@@ -66,10 +72,12 @@ function Channels() {
                   {link.url}
                 </a>
                 <p className="text-xs text-slate-500">
-                  پس از ارسال <span dir="ltr">/start</span> در تلگرام، این صفحه را تازه‌سازی کنید.
+                  {t('پس از ارسال ', 'After sending ')}
+                  <span dir="ltr">/start</span>
+                  {t(' در تلگرام، این صفحه را تازه‌سازی کنید.', ' in Telegram, refresh this page.')}
                 </p>
                 <button onClick={() => mutate()} className="text-xs text-slate-400 hover:text-white">
-                  بررسی وضعیت اتصال
+                  {t('بررسی وضعیت اتصال', 'Check connection status')}
                 </button>
               </div>
             )}
@@ -81,10 +89,13 @@ function Channels() {
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-2">
         <div className="flex items-center gap-2">
           <span className="text-xl">🎮</span>
-          <span className="font-semibold">دیسکورد</span>
+          <span className="font-semibold">{t('دیسکورد', 'Discord')}</span>
         </div>
         <p className="text-sm text-slate-400">
-          آدرس وبهوک دیسکورد را هنگام ساخت هر هشدار وارد کنید. (تنظیمات کانال ← Integrations ← Webhooks)
+          {t(
+            'آدرس وبهوک دیسکورد را هنگام ساخت هر هشدار وارد کنید. (تنظیمات کانال ← Integrations ← Webhooks)',
+            'Enter a Discord webhook URL when creating each alert. (Channel settings → Integrations → Webhooks)',
+          )}
         </p>
       </div>
     </div>

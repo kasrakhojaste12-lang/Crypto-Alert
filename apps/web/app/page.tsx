@@ -1,61 +1,81 @@
+'use client'
 import Link from 'next/link'
-
-const features = [
-  {
-    icon: '🔔',
-    title: 'هشدار قیمت و درصد',
-    body: 'برای رسیدن به یک قیمت مشخص یا درصد تغییر ۲۴ ساعته، دقیقاً همان لحظه باخبر شو.',
-  },
-  {
-    icon: '🪙',
-    title: 'همهٔ جفت‌ارزهای بایننس',
-    body: 'روی هر جفت‌ارز فعال بایننس هشدار بساز — جفت‌ارزهای جدید هم خودکار اضافه می‌شوند.',
-  },
-  {
-    icon: '⚡',
-    title: 'اعلان تلگرام و دیسکورد',
-    body: 'پیام فوری در تلگرام یا دیسکورد، بدون تأخیر و بدون اسپم؛ هر هشدار فقط یک‌بار.',
-  },
-]
+import { useT } from '@/lib/i18n'
+import { LangToggle } from '@/components/LangToggle'
 
 export default function Home() {
+  const t = useT()
+  const features = [
+    {
+      icon: '🔔',
+      title: t('هشدار قیمت و درصد', 'Price & percent alerts'),
+      body: t(
+        'برای رسیدن به یک قیمت مشخص یا درصد تغییر ۲۴ ساعته، دقیقاً همان لحظه باخبر شو.',
+        'Get notified the instant a pair hits a target price or a 24h percent move.',
+      ),
+    },
+    {
+      icon: '🪙',
+      title: t('همهٔ جفت‌ارزهای بایننس', 'Every Binance pair'),
+      body: t(
+        'روی هر جفت‌ارز فعال بایننس هشدار بساز — جفت‌ارزهای جدید هم خودکار اضافه می‌شوند.',
+        'Set alerts on any active Binance pair — newly listed pairs are added automatically.',
+      ),
+    },
+    {
+      icon: '⚡',
+      title: t('اعلان تلگرام و دیسکورد', 'Telegram & Discord'),
+      body: t(
+        'پیام فوری در تلگرام یا دیسکورد، بدون تأخیر و بدون اسپم؛ هر هشدار فقط یک‌بار.',
+        'Instant Telegram or Discord messages — no delay, no spam, each alert fires once.',
+      ),
+    },
+  ]
+
   return (
     <main className="min-h-screen">
       <header className="mx-auto max-w-3xl px-4">
         <div className="h-14 flex items-center justify-between">
           <span className="font-bold text-brand whitespace-nowrap">⚡ الرت کی</span>
-          <Link href="/login" className="text-sm text-slate-400 hover:text-white transition">
-            ورود
-          </Link>
+          <div className="flex items-center gap-3">
+            <LangToggle />
+            <Link href="/login" className="text-sm text-slate-400 hover:text-white transition">
+              {t('ورود', 'Login')}
+            </Link>
+          </div>
         </div>
       </header>
 
       <section className="mx-auto max-w-3xl px-4 pt-16 pb-12 text-center">
         <div className="text-4xl mb-4">⚡</div>
         <h1 className="text-3xl sm:text-4xl font-bold leading-tight">
-          هشدار قیمت ارز دیجیتال،
+          {t('هشدار قیمت ارز دیجیتال،', 'Crypto price alerts,')}
           <br />
-          <span className="text-brand">همان لحظه‌ای که مهم است</span>
+          <span className="text-brand">{t('همان لحظه‌ای که مهم است', 'the moment they matter')}</span>
         </h1>
         <p className="text-slate-400 mt-4 max-w-md mx-auto">
-          روی هر جفت‌ارز بایننس هشدار قیمت یا درصد تغییر بساز و در تلگرام و دیسکورد فوری باخبر شو — جایگزین ارزان‌تر هشدارهای
-          تریدینگ‌ویو.
+          {t(
+            'روی هر جفت‌ارز بایننس هشدار قیمت یا درصد تغییر بساز و در تلگرام و دیسکورد فوری باخبر شو — جایگزین ارزان‌تر هشدارهای تریدینگ‌ویو.',
+            'Set price or percent-change alerts on any Binance pair and get notified instantly on Telegram and Discord — a cheaper alternative to TradingView alerts.',
+          )}
         </p>
         <div className="mt-8 flex items-center justify-center gap-3">
           <Link
             href="/register"
             className="rounded-xl bg-brand px-6 py-3 font-semibold text-slate-950 hover:bg-brand-dark transition"
           >
-            رایگان شروع کن
+            {t('رایگان شروع کن', 'Start free')}
           </Link>
           <Link
             href="/login"
             className="rounded-xl border border-slate-700 px-6 py-3 font-semibold text-slate-200 hover:border-slate-500 transition"
           >
-            ورود
+            {t('ورود', 'Login')}
           </Link>
         </div>
-        <p className="text-xs text-slate-500 mt-4">۳ هشدار رایگان — بدون نیاز به کارت بانکی</p>
+        <p className="text-xs text-slate-500 mt-4">
+          {t('۳ هشدار رایگان — بدون نیاز به کارت بانکی', '3 free alerts — no card required')}
+        </p>
       </section>
 
       <section className="mx-auto max-w-3xl px-4 pb-16 grid gap-4 sm:grid-cols-3">
@@ -70,21 +90,24 @@ export default function Home() {
 
       <section className="mx-auto max-w-3xl px-4 pb-20">
         <div className="rounded-2xl border border-brand/30 bg-brand/5 p-8 text-center space-y-4">
-          <h2 className="text-xl font-bold">آمادهٔ ساختن اولین هشدار؟</h2>
+          <h2 className="text-xl font-bold">{t('آمادهٔ ساختن اولین هشدار؟', 'Ready to build your first alert?')}</h2>
           <p className="text-sm text-slate-400">
-            ثبت‌نام در کمتر از یک دقیقه. هشدار نامحدود با اشتراک ماهانه و پرداخت امن از طریق زیبال.
+            {t(
+              'ثبت‌نام در کمتر از یک دقیقه. هشدار نامحدود با اشتراک ماهانه و پرداخت امن از طریق زیبال.',
+              'Sign up in under a minute. Unlimited alerts with a monthly subscription, paid securely via Zibal.',
+            )}
           </p>
           <Link
             href="/register"
             className="inline-block rounded-xl bg-brand px-6 py-3 font-semibold text-slate-950 hover:bg-brand-dark transition"
           >
-            ساختن حساب رایگان
+            {t('ساختن حساب رایگان', 'Create a free account')}
           </Link>
         </div>
       </section>
 
       <footer className="mx-auto max-w-3xl px-4 pb-10 text-center text-xs text-slate-600">
-        ⚡ الرت کی — هشدار قیمت ارز دیجیتال
+        ⚡ {t('الرت کی — هشدار قیمت ارز دیجیتال', 'Alert Key — crypto price alerts')}
       </footer>
     </main>
   )

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api, type ApiError } from '@/lib/api'
 import { useUser } from '@/lib/useUser'
+import { useT } from '@/lib/i18n'
 import { SymbolPicker, LivePrice } from './SymbolPicker'
 
 type Type = 'price' | 'percent'
@@ -50,6 +51,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export function AlertForm() {
   const router = useRouter()
   const { user } = useUser()
+  const t = useT()
 
   const [symbol, setSymbol] = useState('')
   const [type, setType] = useState<Type>('price')
@@ -70,13 +72,13 @@ export function AlertForm() {
     e.preventDefault()
     setError(null)
     setUpgrade(false)
-    if (!symbol) return setError('یک نماد انتخاب کنید')
-    if (!target || Number.isNaN(Number(target))) return setError('مقدار هدف معتبر نیست')
+    if (!symbol) return setError(t('یک نماد انتخاب کنید', 'Select a pair'))
+    if (!target || Number.isNaN(Number(target))) return setError(t('مقدار هدف معتبر نیست', 'Target value is invalid'))
 
     const channels: { type: string; identifier?: string }[] = []
     if (chTelegram) channels.push({ type: 'telegram' })
     if (chDiscord) channels.push({ type: 'discord', identifier: discordUrl })
-    if (!channels.length) return setError('حداقل یک کانال اعلان انتخاب کنید')
+    if (!channels.length) return setError(t('حداقل یک کانال اعلان انتخاب کنید', 'Select at least one notification channel'))
 
     setBusy(true)
     try {
@@ -96,10 +98,11 @@ export function AlertForm() {
     } catch (e) {
       const err = e as ApiError
       if (err.status === 402) setUpgrade(true)
-      else if (err.message === 'telegram_not_linked') setError('ابتدا تلگرام خود را متصل کنید.')
-      else if (err.message === 'invalid_discord_webhook') setError('آدرس وبهوک دیسکورد معتبر نیست.')
-      else if (err.message === 'no_price_yet') setError('قیمت لحظه‌ای این نماد هنوز دریافت نشده؛ چند ثانیه بعد دوباره تلاش کنید.')
-      else setError('خطا در ساخت هشدار')
+      else if (err.message === 'telegram_not_linked') setError(t('ابتدا تلگرام خود را متصل کنید.', 'Link your Telegram first.'))
+      else if (err.message === 'invalid_discord_webhook') setError(t('آدرس وبهوک دیسکورد معتبر نیست.', 'The Discord webhook URL is invalid.'))
+      else if (err.message === 'no_price_yet')
+        setError(t('قیمت لحظه‌ای این نماد هنوز دریافت نشده؛ چند ثانیه بعد دوباره تلاش کنید.', "This pair's live price isn't available yet; try again in a few seconds."))
+      else setError(t('خطا در ساخت هشدار', 'Failed to create the alert'))
     } finally {
       setBusy(false)
     }
@@ -107,80 +110,80 @@ export function AlertForm() {
 
   return (
     <form onSubmit={submit} className="space-y-6">
-      <Field label="نماد جفت‌ارز">
+      <Field label={t('نماد جفت‌ارز', 'Trading pair')}>
         <SymbolPicker value={symbol} onChange={setSymbol} />
       </Field>
 
-      <Field label="نوع هشدار">
+      <Field label={t('نوع هشدار', 'Alert type')}>
         <Seg
           value={type}
           onChange={setType}
           options={[
-            { value: 'price', label: 'قیمت' },
-            { value: 'percent', label: 'درصد تغییر' },
+            { value: 'price', label: t('قیمت', 'Price') },
+            { value: 'percent', label: t('درصد تغییر', 'Percent change') },
           ]}
         />
       </Field>
 
       {type === 'percent' && (
-        <Field label="مبنای درصد">
+        <Field label={t('مبنای درصد', 'Percent basis')}>
           <Seg
             value={basis}
             onChange={setBasis}
             options={[
-              { value: 'h24', label: '۲۴ ساعت گذشته' },
-              { value: 'since_created', label: 'از زمان ایجاد' },
+              { value: 'h24', label: t('۲۴ ساعت گذشته', 'Last 24h') },
+              { value: 'since_created', label: t('از زمان ایجاد', 'Since created') },
             ]}
           />
         </Field>
       )}
 
-      <Field label="جهت">
+      <Field label={t('جهت', 'Direction')}>
         <Seg
           value={direction}
           onChange={setDirection}
           options={[
-            { value: 'above', label: 'بالاتر از' },
-            { value: 'below', label: 'پایین‌تر از' },
+            { value: 'above', label: t('بالاتر از', 'Above') },
+            { value: 'below', label: t('پایین‌تر از', 'Below') },
           ]}
         />
       </Field>
 
-      <Field label={type === 'price' ? 'قیمت هدف' : 'درصد هدف'}>
+      <Field label={type === 'price' ? t('قیمت هدف', 'Target price') : t('درصد هدف', 'Target percent')}>
         <input
           type="number"
           step="any"
           value={target}
           onChange={(e) => setTarget(e.target.value)}
-          placeholder={type === 'price' ? 'مثلاً 70000' : 'مثلاً 5'}
+          placeholder={type === 'price' ? t('مثلاً 70000', 'e.g. 70000') : t('مثلاً 5', 'e.g. 5')}
           className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
         />
         {type === 'price' && symbol && (
           <div className="text-xs text-slate-500 flex gap-1">
-            قیمت فعلی: <LivePrice symbol={symbol} />
+            {t('قیمت فعلی:', 'Current price:')} <LivePrice symbol={symbol} />
           </div>
         )}
       </Field>
 
-      <Field label="حالت تکرار">
+      <Field label={t('حالت تکرار', 'Repeat mode')}>
         <Seg
           value={repeat}
           onChange={setRepeat}
           options={[
-            { value: 'one_time', label: 'یک‌بار' },
-            { value: 'recurring', label: 'تکرارشونده' },
+            { value: 'one_time', label: t('یک‌بار', 'One-time') },
+            { value: 'recurring', label: t('تکرارشونده', 'Recurring') },
           ]}
         />
       </Field>
 
-      <Field label="کانال‌های اعلان">
+      <Field label={t('کانال‌های اعلان', 'Notification channels')}>
         <div className="space-y-2">
           <Check
             checked={chTelegram}
             onChange={setChTelegram}
-            label={`تلگرام ${user && !user.telegramLinked ? '(متصل نشده)' : ''}`}
+            label={`${t('تلگرام', 'Telegram')} ${user && !user.telegramLinked ? t('(متصل نشده)', '(not linked)') : ''}`}
           />
-          <Check checked={chDiscord} onChange={setChDiscord} label="دیسکورد (وبهوک)" />
+          <Check checked={chDiscord} onChange={setChDiscord} label={t('دیسکورد (وبهوک)', 'Discord (webhook)')} />
           {chDiscord && (
             <input
               value={discordUrl}
@@ -196,9 +199,9 @@ export function AlertForm() {
       {error && <p className="text-sm text-rose-400">{error}</p>}
       {upgrade && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
-          <p className="text-amber-300">به سقف ۳ هشدار رایگان رسیده‌اید.</p>
+          <p className="text-amber-300">{t('به سقف ۳ هشدار رایگان رسیده‌اید.', "You've reached the 3 free-alert limit.")}</p>
           <Link href="/billing" className="text-brand underline">
-            ارتقا به اشتراک ←
+            {t('ارتقا به اشتراک ←', 'Upgrade to a subscription →')}
           </Link>
         </div>
       )}
@@ -208,7 +211,7 @@ export function AlertForm() {
         disabled={busy}
         className="w-full rounded-xl bg-brand py-3 font-semibold text-slate-950 hover:bg-brand-dark disabled:opacity-50"
       >
-        {busy ? 'در حال ساخت…' : 'ساخت هشدار'}
+        {busy ? t('در حال ساخت…', 'Creating…') : t('ساخت هشدار', 'Create alert')}
       </button>
     </form>
   )

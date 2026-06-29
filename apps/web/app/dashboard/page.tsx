@@ -3,9 +3,10 @@ import Link from 'next/link'
 import useSWR from 'swr'
 import { api } from '@/lib/api'
 import { useUser } from '@/lib/useUser'
+import { useLang, useT } from '@/lib/i18n'
 import { Shell } from '@/components/Shell'
 import { CoinIcon } from '@/components/CoinIcon'
-import { describeAlert, faNum, baseOf, STATUS_FA, REPEAT_FA, type AlertShape } from '@/lib/format'
+import { describeAlert, fmtNum, baseOf, statusInfo, repeatLabel, type AlertShape } from '@/lib/format'
 
 interface Alert extends AlertShape {
   id: string
@@ -24,6 +25,8 @@ export default function DashboardPage() {
 
 function Dashboard() {
   const { user } = useUser()
+  const t = useT()
+  const { lang } = useLang()
   const { data: alerts, mutate } = useSWR<Alert[]>('/api/alerts', api)
 
   async function toggle(a: Alert) {
@@ -43,28 +46,31 @@ function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">هشدارهای من</h1>
+        <h1 className="text-xl font-bold">{t('هشدارهای من', 'My alerts')}</h1>
         <Link
           href="/alerts/new"
           className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-brand-dark"
         >
-          + ساخت هشدار
+          {t('+ ساخت هشدار', '+ New alert')}
         </Link>
       </div>
 
       {/* Free-tier counter */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
         {paid ? (
-          <p className="text-sm text-brand">اشتراک فعال — هشدار نامحدود</p>
+          <p className="text-sm text-brand">{t('اشتراک فعال — هشدار نامحدود', 'Active subscription — unlimited alerts')}</p>
         ) : (
           <>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-slate-300">
-                {faNum(Math.min(used, limit))} از {faNum(limit)} هشدار رایگان
+                {t(
+                  `${fmtNum(Math.min(used, limit), lang)} از ${fmtNum(limit, lang)} هشدار رایگان`,
+                  `${fmtNum(Math.min(used, limit), lang)} of ${fmtNum(limit, lang)} free alerts`,
+                )}
               </span>
               {used >= limit && (
                 <Link href="/billing" className="text-brand">
-                  ارتقا ←
+                  {t('ارتقا ←', 'Upgrade →')}
                 </Link>
               )}
             </div>
@@ -80,18 +86,18 @@ function Dashboard() {
 
       {/* Alerts list */}
       {!alerts ? (
-        <p className="text-slate-500 text-sm">در حال بارگذاری…</p>
+        <p className="text-slate-500 text-sm">{t('در حال بارگذاری…', 'Loading…')}</p>
       ) : alerts.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-800 p-10 text-center">
-          <p className="text-slate-400">هنوز هشداری نساخته‌اید.</p>
+          <p className="text-slate-400">{t('هنوز هشداری نساخته‌اید.', "You haven't created any alerts yet.")}</p>
           <Link href="/alerts/new" className="text-brand text-sm">
-            اولین هشدار خود را بسازید ←
+            {t('اولین هشدار خود را بسازید ←', 'Create your first alert →')}
           </Link>
         </div>
       ) : (
         <div className="space-y-3">
           {alerts.map((a) => {
-            const st = STATUS_FA[a.status] ?? { label: a.status, cls: 'bg-slate-700 text-slate-300' }
+            const st = statusInfo(a.status, lang)
             const base = baseOf(a.symbol)
             return (
               <div
@@ -104,9 +110,9 @@ function Dashboard() {
                     <span className="font-semibold">{a.symbol}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
                   </div>
-                  <p className="text-sm text-slate-400 mt-0.5">{describeAlert(a)}</p>
+                  <p className="text-sm text-slate-400 mt-0.5">{describeAlert(a, lang)}</p>
                   <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                    <span>{REPEAT_FA[a.repeat]}</span>
+                    <span>{repeatLabel(a.repeat, lang)}</span>
                     <span>·</span>
                     <span>{a.channels.map((c) => CHANNEL_ICON[c.type] ?? c.type).join(' ')}</span>
                   </div>
@@ -115,15 +121,15 @@ function Dashboard() {
                   {a.status !== 'triggered' && (
                     <>
                       <button onClick={() => toggle(a)} className="text-slate-400 hover:text-white">
-                        {a.status === 'paused' ? 'فعال‌سازی' : 'توقف'}
+                        {a.status === 'paused' ? t('فعال‌سازی', 'Activate') : t('توقف', 'Pause')}
                       </button>
                       <Link href={`/alerts/${a.id}/edit`} className="text-slate-400 hover:text-white">
-                        ویرایش
+                        {t('ویرایش', 'Edit')}
                       </Link>
                     </>
                   )}
                   <button onClick={() => remove(a.id)} className="text-slate-500 hover:text-rose-400">
-                    حذف
+                    {t('حذف', 'Delete')}
                   </button>
                 </div>
               </div>
