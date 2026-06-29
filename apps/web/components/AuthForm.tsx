@@ -42,6 +42,8 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       if (!window.turnstile || !boxRef.current || widgetId.current) return
       widgetId.current = window.turnstile.render(boxRef.current, {
         sitekey: SITEKEY,
+        theme: 'dark',
+        language: 'fa',
         callback: (t: string) => setToken(t),
         'error-callback': () => setToken(''),
         'expired-callback': () => setToken(''),
