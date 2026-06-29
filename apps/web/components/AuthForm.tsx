@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api, type ApiError } from '@/lib/api'
@@ -8,6 +8,19 @@ const MESSAGES: Record<string, string> = {
   email_taken: 'این ایمیل قبلاً ثبت شده است.',
   invalid_credentials: 'ایمیل یا رمز عبور نادرست است.',
   invalid_input: 'ایمیل معتبر و رمز حداقل ۶ کاراکتر وارد کنید.',
+  captcha_failed: 'تأیید امنیتی ناموفق بود. دوباره تلاش کنید.',
+}
+
+const SITEKEY = process.env.NEXT_PUBLIC_TURNSTILE_SITEKEY
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (el: HTMLElement, opts: Record<string, unknown>) => string
+      remove: (id: string) => void
+      reset: (id?: string) => void
+    }
+  }
 }
 
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
@@ -16,19 +29,59 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [token, setToken] = useState('')
+  const boxRef = useRef<HTMLDivElement>(null)
+  const widgetId = useRef<string | undefined>(undefined)
 
   const isLogin = mode === 'login'
+
+  // Cloudflare Turnstile widget (only when a sitekey is configured).
+  useEffect(() => {
+    if (!SITEKEY) return
+    const render = () => {
+      if (!window.turnstile || !boxRef.current || widgetId.current) return
+      widgetId.current = window.turnstile.render(boxRef.current, {
+        sitekey: SITEKEY,
+        callback: (t: string) => setToken(t),
+        'error-callback': () => setToken(''),
+        'expired-callback': () => setToken(''),
+      })
+    }
+    const SCRIPT_ID = 'cf-turnstile'
+    if (document.getElementById(SCRIPT_ID)) {
+      render()
+    } else {
+      const s = document.createElement('script')
+      s.id = SCRIPT_ID
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+      s.async = true
+      s.onload = render
+      document.head.appendChild(s)
+    }
+    return () => {
+      if (widgetId.current && window.turnstile) window.turnstile.remove(widgetId.current)
+      widgetId.current = undefined
+    }
+  }, [])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setBusy(true)
     try {
-      await api(`/api/auth/${mode}`, { method: 'POST', body: JSON.stringify({ email, password }) })
+      await api(`/api/auth/${mode}`, {
+        method: 'POST',
+        body: JSON.stringify({ email, password, turnstileToken: token }),
+      })
       router.push('/dashboard')
     } catch (e) {
       const err = e as ApiError
       setError(MESSAGES[err.message] || 'خطایی رخ داد')
+      // let the user solve a fresh challenge after a failed attempt
+      if (SITEKEY && widgetId.current && window.turnstile) {
+        window.turnstile.reset(widgetId.current)
+        setToken('')
+      }
     } finally {
       setBusy(false)
     }
@@ -70,11 +123,13 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
             />
           </div>
 
+          {SITEKEY && <div ref={boxRef} className="flex justify-center" />}
+
           {error && <p className="text-sm text-rose-400">{error}</p>}
 
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || (!!SITEKEY && !token)}
             className="w-full rounded-xl bg-brand py-3 font-semibold text-slate-950 hover:bg-brand-dark disabled:opacity-50"
           >
             {busy ? '...' : isLogin ? 'ورود' : 'ثبت‌نام'}
