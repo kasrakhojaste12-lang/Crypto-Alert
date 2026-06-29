@@ -9,11 +9,18 @@ import { FREE_ALERT_LIMIT, activeAlertCount } from '../lib/limits'
 const router = Router()
 const cred = z.object({ email: z.string().email(), password: z.string().min(6) })
 
+// Secure cookie is on in production by default, but COOKIE_SECURE=0 forces it
+// off for an http-only deploy (e.g. a bare IP before the HTTPS domain is set).
+const COOKIE_SECURE =
+  process.env.COOKIE_SECURE != null
+    ? process.env.COOKIE_SECURE === '1'
+    : process.env.NODE_ENV === 'production'
+
 function setCookie(res: Response, token: string) {
   res.cookie('token', token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: COOKIE_SECURE,
     maxAge: 7 * 24 * 3600 * 1000,
   })
 }
