@@ -51,7 +51,7 @@ export default function Home() {
       </header>
 
       <section className="mx-auto max-w-3xl px-4 pt-16 pb-12 text-center">
-        <div className="text-4xl mb-4">⚡</div>
+        <Logo className="h-24 w-auto mx-auto mb-4" />
         <h1 className="text-3xl sm:text-4xl font-bold leading-tight">
           {t('هشدار قیمت ارز دیجیتال،', 'Crypto price alerts,')}
           <br />
