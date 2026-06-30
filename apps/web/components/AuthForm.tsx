@@ -111,7 +111,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="text-3xl mb-2">⚡</div>
-          <h1 className="text-2xl font-bold text-brand">الرت کی</h1>
+          <h1 className="text-2xl font-bold text-brand">{t('الرت کی', 'Alert Key')}</h1>
           <p className="text-slate-400 text-sm mt-1">
             {isLogin ? t('به حساب خود وارد شوید', 'Sign in to your account') : t('یک حساب جدید بسازید', 'Create a new account')}
           </p>
