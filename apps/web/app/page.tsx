@@ -107,6 +107,24 @@ export default function Home() {
       </section>
 
       <footer className="mx-auto max-w-3xl px-4 pb-10 text-center text-xs text-slate-600">
+        <div className="mb-6 flex justify-center">
+          {/* Enamad trust seal — referrerPolicy=origin lets Enamad verify the domain */}
+          {/* eslint-disable-next-line react/jsx-no-target-blank */}
+          <a
+            referrerPolicy="origin"
+            target="_blank"
+            href="https://trustseal.enamad.ir/?id=751293&Code=kh6ufFn09c4PTC0RsilJJjeVt4JfOOHw"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              referrerPolicy="origin"
+              src="https://trustseal.enamad.ir/logo.aspx?id=751293&Code=kh6ufFn09c4PTC0RsilJJjeVt4JfOOHw"
+              alt="Enamad"
+              style={{ cursor: 'pointer' }}
+              {...({ code: 'kh6ufFn09c4PTC0RsilJJjeVt4JfOOHw' } as any)}
+            />
+          </a>
+        </div>
         ⚡ {t('الرت کی — هشدار قیمت ارز دیجیتال', 'Alert Key — crypto price alerts')}
       </footer>
     </main>
