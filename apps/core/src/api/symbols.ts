@@ -13,15 +13,28 @@ let known = new Set<string>()
 // Fetch every TRADING pair (USDT-quoted first) and update the cache. Returns any
 // symbols that are new since the last refresh — i.e. pairs Binance just listed.
 export async function refreshSymbols(): Promise<{ total: number; added: string[] }> {
-  const r = await fetch(`${REST}/api/v3/exchangeInfo`)
-  if (!r.ok) throw new Error(`exchangeInfo ${r.status}`)
-  const data = await r.json()
+  const [exRes, tkRes] = await Promise.all([
+    fetch(`${REST}/api/v3/exchangeInfo`),
+    fetch(`${REST}/api/v3/ticker/24hr?type=MINI`),
+  ])
+  if (!exRes.ok) throw new Error(`exchangeInfo ${exRes.status}`)
+  const data = await exRes.json()
+  // 24h quote volume per symbol, so the picker defaults to the most-traded pairs.
+  // Best-effort: if the ticker call fails, fall back to the USDT-first alpha sort.
+  const vol = new Map<string, number>()
+  if (tkRes.ok) {
+    for (const t of (await tkRes.json()) as any[]) vol.set(t.symbol, Number(t.quoteVolume) || 0)
+  }
   const list: Sym[] = data.symbols
     .filter((s: any) => s.status === 'TRADING')
     .map((s: any) => ({ symbol: s.symbol, base: s.baseAsset, quote: s.quoteAsset }))
     .sort((a: Sym, b: Sym) => {
+      // USDT pairs first: quoteVolume is only comparable within one quote asset
+      // (an IDR-quoted pair's volume is a huge number just because IDR is tiny).
       const au = a.quote === 'USDT', bu = b.quote === 'USDT'
       if (au !== bu) return au ? -1 : 1
+      const va = vol.get(a.symbol) ?? 0, vb = vol.get(b.symbol) ?? 0
+      if (va !== vb) return vb - va // then most 24h volume first
       return a.symbol.localeCompare(b.symbol)
     })
   const current = new Set(list.map((s) => s.symbol))
