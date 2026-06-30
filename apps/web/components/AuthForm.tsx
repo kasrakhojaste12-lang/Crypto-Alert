@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { api, type ApiError } from '@/lib/api'
 import { useLang, useT } from '@/lib/i18n'
 import { LangToggle } from '@/components/LangToggle'
+import { Logo } from '@/components/Logo'
 
 const SITEKEY = process.env.NEXT_PUBLIC_TURNSTILE_SITEKEY
 
@@ -115,7 +116,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       </div>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="text-3xl mb-2">⚡</div>
+          <Logo className="h-20 w-auto mx-auto mb-2" />
           <h1 className="text-2xl font-bold text-brand">{t('الرت کی', 'Alert Key')}</h1>
           <p className="text-slate-400 text-sm mt-1">
             {isLogin ? t('به حساب خود وارد شوید', 'Sign in to your account') : t('یک حساب جدید بسازید', 'Create a new account')}

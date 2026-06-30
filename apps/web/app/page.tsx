@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { useT } from '@/lib/i18n'
 import { LangToggle } from '@/components/LangToggle'
+import { Logo } from '@/components/Logo'
 
 export default function Home() {
   const t = useT()
@@ -36,7 +37,10 @@ export default function Home() {
     <main className="min-h-screen">
       <header className="mx-auto max-w-3xl px-4">
         <div className="h-14 flex items-center justify-between">
-          <span className="font-bold text-brand whitespace-nowrap">⚡ {t('الرت کی', 'Alert Key')}</span>
+          <span className="flex items-center gap-2 font-bold text-brand whitespace-nowrap">
+            <Logo className="h-8 w-auto" />
+            {t('الرت کی', 'Alert Key')}
+          </span>
           <div className="flex items-center gap-3">
             <LangToggle />
             <Link href="/login" className="text-sm text-slate-400 hover:text-white transition">
@@ -107,6 +111,10 @@ export default function Home() {
       </section>
 
       <footer className="mx-auto max-w-3xl px-4 pb-10 text-center text-xs text-slate-600">
+        <div className="mb-4 flex items-center justify-center gap-2 text-slate-500">
+          <Logo className="h-5 w-auto" />
+          {t('الرت کی — هشدار قیمت ارز دیجیتال', 'Alert Key — crypto price alerts')}
+        </div>
         <div className="mb-6 flex justify-center">
           {/* Enamad trust seal — referrerPolicy=origin lets Enamad verify the domain */}
           {/* eslint-disable-next-line react/jsx-no-target-blank */}
@@ -125,7 +133,6 @@ export default function Home() {
             />
           </a>
         </div>
-        ⚡ {t('الرت کی — هشدار قیمت ارز دیجیتال', 'Alert Key — crypto price alerts')}
       </footer>
     </main>
   )
