@@ -8,6 +8,7 @@ import { LangProvider } from '@/lib/i18n'
 export const metadata: Metadata = {
   title: 'الرت کی — Alert Key',
   description: 'هشدار قیمت و درصد تغییر برای هر جفت‌ارز بایننس، با اعلان تلگرام و دیسکورد',
+  other: { enamad: '26970244' }, // Enamad trust-badge verification
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
