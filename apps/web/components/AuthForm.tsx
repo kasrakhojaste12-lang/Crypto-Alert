@@ -24,6 +24,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const { lang } = useLang()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [token, setToken] = useState('')
@@ -78,6 +79,10 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    if (!isLogin && password !== confirmPassword) {
+      setError(t('رمزهای عبور مطابقت ندارند', 'Passwords do not match'))
+      return
+    }
     setBusy(true)
     const messages: Record<string, string> = {
       email_taken: t('این ایمیل قبلاً ثبت شده است.', 'This email is already registered.'),
@@ -141,6 +146,21 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
             />
           </div>
+
+          {!isLogin && (
+            <div className="space-y-2">
+              <label className="block text-sm text-slate-400">{t('تکرار رمز عبور', 'Confirm password')}</label>
+              <input
+                type="password"
+                dir="ltr"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
+                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
+              />
+            </div>
+          )}
 
           {SITEKEY && <div ref={boxRef} className="flex justify-center" />}
 

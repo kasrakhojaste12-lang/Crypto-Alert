@@ -4,11 +4,23 @@ import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/db'
 import { log } from '../lib/log'
 import { requireAuth, type AuthedRequest } from '../lib/auth'
+import { getRate } from '../lib/rate'
 
 const router = Router()
 
-const PRICE_RIAL = Number(process.env.SUB_PRICE_RIAL || 500000)
+const PRICE_USDT = Number(process.env.SUB_PRICE_USDT || 5)
 const PERIOD_DAYS = 30
+
+// Price is denominated in USDT and converted to Toman/Rial at the live Wallex
+// rate. Zibal charges Rial (= Toman × 10).
+function currentPrice() {
+  const { tomanPerUsdt, updatedAt } = getRate()
+  const toman = Math.round(PRICE_USDT * tomanPerUsdt)
+  return { usdt: PRICE_USDT, tomanPerUsdt, toman, rial: toman * 10, updatedAt }
+}
+
+// Public: the billing page reads this to show the current Toman price.
+router.get('/price', (_req, res) => res.json(currentPrice()))
 const BRIDGE = process.env.BRIDGE_BASE_URL || 'http://localhost:4100'
 const WEB = process.env.WEB_BASE_URL || 'http://localhost:3000'
 const BRIDGE_SECRET = process.env.BRIDGE_SHARED_SECRET || 'bridge-secret'
@@ -16,16 +28,17 @@ const BRIDGE_SECRET = process.env.BRIDGE_SHARED_SECRET || 'bridge-secret'
 // 1) Create a pending subscription and hand back a signed redirect to the
 //    Iran-side bridge (the core never talks to Zibal directly).
 router.post('/checkout', requireAuth, async (req: AuthedRequest, res) => {
+  const { rial } = currentPrice()
   const orderId = crypto.randomUUID()
   await prisma.subscription.create({
-    data: { userId: req.userId!, amount: PRICE_RIAL, status: 'pending', zibalOrderId: orderId },
+    data: { userId: req.userId!, amount: rial, status: 'pending', zibalOrderId: orderId },
   })
   const token = jwt.sign(
-    { orderId, amount: PRICE_RIAL, returnUrl: `${WEB}/billing/result` },
+    { orderId, amount: rial, returnUrl: `${WEB}/billing/result` },
     BRIDGE_SECRET,
     { expiresIn: '30m' },
   )
-  res.json({ redirectUrl: `${BRIDGE}/pay?token=${token}`, amount: PRICE_RIAL })
+  res.json({ redirectUrl: `${BRIDGE}/pay?token=${token}`, amount: rial })
 })
 
 // 2) The bridge calls this (HMAC-signed) after verifying payment with Zibal.

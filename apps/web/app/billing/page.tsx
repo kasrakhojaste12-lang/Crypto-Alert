@@ -1,12 +1,13 @@
 'use client'
 import { useState } from 'react'
+import useSWR from 'swr'
 import { api } from '@/lib/api'
 import { useUser } from '@/lib/useUser'
 import { useLang, useT } from '@/lib/i18n'
 import { Shell } from '@/components/Shell'
 import { toman } from '@/lib/format'
 
-const PRICE_RIAL = 500000 // mirrors SUB_PRICE_RIAL default; display only
+interface Price { usdt: number; toman: number; tomanPerUsdt: number; rial: number; updatedAt: string | null }
 
 export default function BillingPage() {
   return (
@@ -21,6 +22,7 @@ function Billing() {
   const t = useT()
   const { lang } = useLang()
   const [busy, setBusy] = useState(false)
+  const { data: price } = useSWR<Price>('/api/billing/price', api)
 
   async function checkout() {
     setBusy(true)
@@ -59,9 +61,14 @@ function Billing() {
           <p className="text-sm text-slate-400 mt-1">{t('هشدار نامحدود، همهٔ کانال‌ها', 'Unlimited alerts, all channels')}</p>
         </div>
         <p className="text-2xl font-bold">
-          {toman(PRICE_RIAL, lang)}{' '}
+          {price ? toman(price.rial, lang) : '…'}{' '}
           <span className="text-base font-normal text-slate-400">{t('تومان / ماه', 'Toman / month')}</span>
         </p>
+        {price && (
+          <p className="text-xs text-slate-500">
+            {t(`معادل ${price.usdt} تتر (USDT) — نرخ لحظه‌ای از والکس`, `= ${price.usdt} USDT — live rate from Wallex`)}
+          </p>
+        )}
         <button
           onClick={checkout}
           disabled={busy}

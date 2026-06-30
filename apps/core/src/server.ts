@@ -12,6 +12,7 @@ import alertsRouter from './api/alerts'
 import channelsRouter from './api/channels'
 import symbolsRouter, { startSymbolRefresh } from './api/symbols'
 import billingRouter from './api/billing'
+import { startRatePolling } from './lib/rate'
 
 const app = express()
 app.set('trust proxy', 1)
@@ -47,6 +48,7 @@ const PORT = Number(process.env.CORE_PORT || 4000) // dev feed: /api/dev/tick
 async function main() {
   await engine.loadActive()
   startSymbolRefresh() // auto-pick up newly-listed Binance pairs
+  startRatePolling() // hourly USDT→Toman from Wallex for subscription pricing
   // FEED_MODE=rest polls REST (WS blocked locally); default 'ws' for production.
   if ((process.env.FEED_MODE || 'ws') === 'rest') startRestFeed()
   else startFeed()
