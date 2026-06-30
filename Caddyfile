@@ -4,8 +4,19 @@
 #   everything else -> web
 # Same-origin web+API means the sameSite=lax auth cookie works with no CORS.
 # handle blocks are sorted by specificity, so order here is not significant.
+{
+	# Iran's DPI resets TLS 1.3 / QUIC handshakes to some domains; force TCP +
+	# TLS 1.2 so browsers use the same handshake curl does (which reaches Iran).
+	servers {
+		protocols h1 h2
+	}
+}
+
 {$DOMAIN} {
 	encode gzip
+	tls {
+		protocols tls1.2 tls1.2
+	}
 
 	handle_path /bridge/* {
 		reverse_proxy bridge:4100
