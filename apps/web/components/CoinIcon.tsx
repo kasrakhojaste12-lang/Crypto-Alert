@@ -1,9 +1,12 @@
 'use client'
 import { useState } from 'react'
 
+// Icons are proxied through our origin (CoinCap is blocked in Iran); same base as the API.
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
+
 export function CoinIcon({ base, size = 28 }: { base: string; size?: number }) {
   const [err, setErr] = useState(false)
-  const src = `https://assets.coincap.io/assets/icons/${base.toLowerCase()}@2x.png`
+  const src = `${API}/api/symbols/icon/${base.toLowerCase()}`
   if (err)
     return (
       <div

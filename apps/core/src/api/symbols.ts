@@ -85,4 +85,31 @@ router.get('/price/:symbol', (req, res) => {
   res.json({ symbol, price })
 })
 
+// Coin icons proxied through the origin so they work from Iran, where the client
+// can't reach assets.coincap.io directly (geo-blocked). Cached in memory.
+// ponytail: unbounded Map, but bounded by the coin universe (~few k) — fine.
+const ICON_SRC = 'https://assets.coincap.io/assets/icons'
+const iconCache = new Map<string, { buf: Buffer; type: string } | null>() // null = known-missing
+
+router.get('/icon/:base', async (req, res) => {
+  const base = req.params.base.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (!base) return res.status(404).end()
+  if (!iconCache.has(base)) {
+    try {
+      const r = await fetch(`${ICON_SRC}/${base}@2x.png`, { signal: AbortSignal.timeout(8000) })
+      iconCache.set(
+        base,
+        r.ok ? { buf: Buffer.from(await r.arrayBuffer()), type: r.headers.get('content-type') || 'image/png' } : null,
+      )
+    } catch {
+      return res.status(502).end() // transient failure — don't cache it
+    }
+  }
+  const hit = iconCache.get(base)
+  if (!hit) return res.status(404).end()
+  res.set('Cache-Control', 'public, max-age=604800') // 1 week; browser-cached
+  res.type(hit.type)
+  res.send(hit.buf)
+})
+
 export default router
