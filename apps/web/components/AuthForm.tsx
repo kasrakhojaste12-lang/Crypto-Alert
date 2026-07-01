@@ -7,6 +7,7 @@ import { useLang, useT } from '@/lib/i18n'
 import { LangToggle } from '@/components/LangToggle'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
+import { WelcomeModal } from '@/components/WelcomeModal'
 
 const SITEKEY = process.env.NEXT_PUBLIC_TURNSTILE_SITEKEY
 
@@ -30,6 +31,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [token, setToken] = useState('')
+  const [premiumUntil, setPremiumUntil] = useState<string | null>(null) // set => show welcome modal
   const boxRef = useRef<HTMLDivElement>(null)
   const widgetId = useRef<string | undefined>(undefined)
 
@@ -93,11 +95,14 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       captcha_failed: t('تأیید امنیتی ناموفق بود. دوباره تلاش کنید.', 'Security check failed. Please try again.'),
     }
     try {
-      await api(`/api/auth/${mode}`, {
+      const resp = await api(`/api/auth/${mode}`, {
         method: 'POST',
         body: JSON.stringify({ email, password, turnstileToken: token }),
       })
-      router.push('/dashboard')
+      // New signups during the launch campaign get free Premium — celebrate it
+      // with the welcome modal before entering the app.
+      if (!isLogin && resp?.premium?.until) setPremiumUntil(resp.premium.until)
+      else router.push('/dashboard')
     } catch (e) {
       const err = e as ApiError
       setError(messages[err.message] || t('خطایی رخ داد', 'Something went wrong'))
@@ -193,6 +198,10 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
           </p>
         </form>
       </div>
+
+      {premiumUntil && (
+        <WelcomeModal until={premiumUntil} onStart={() => router.push('/dashboard')} />
+      )}
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { LangToggle } from '@/components/LangToggle'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
 import { TelegramBanner } from '@/components/TelegramBanner'
+import { CampaignBanner } from '@/components/CampaignBanner'
 
 function FeatureIcon({ children }: { children: React.ReactNode }) {
   return (
@@ -88,6 +89,8 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      <CampaignBanner />
 
       <section className="mx-auto max-w-3xl px-4 pt-16 pb-12 text-center">
         <Logo className="h-24 w-auto mx-auto mb-4" />

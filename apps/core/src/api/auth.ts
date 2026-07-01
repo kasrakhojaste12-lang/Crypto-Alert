@@ -8,6 +8,7 @@ import { FREE_ALERT_LIMIT, PAID_ALERT_LIMIT, activeAlertCount } from '../lib/lim
 import { sendEmail } from '../dispatch/email'
 import { passwordResetEmail } from '../dispatch/emails'
 import { signReset, resetSubject, verifyReset } from '../lib/reset'
+import { CAMPAIGN_END, campaignActive } from '../lib/campaign'
 import { log } from '../lib/log'
 
 const router = Router()
@@ -58,8 +59,34 @@ router.post('/register', async (req, res) => {
     return res.status(409).json({ error: 'email_taken' })
   const passwordHash = await bcrypt.hash(p.data.password, 10)
   const user = await prisma.user.create({ data: { email: p.data.email, passwordHash } })
+
+  // Launch campaign: grant free Premium until the campaign end date. Best-effort
+  // — a grant failure must never block the account from being created.
+  let premium: { until: string } | null = null
+  if (campaignActive()) {
+    try {
+      const now = new Date()
+      await prisma.subscription.create({
+        data: {
+          userId: user.id, plan: 'paid', status: 'active', amount: 0,
+          periodStart: now, periodEnd: CAMPAIGN_END, zibalOrderId: `launch-${user.id}`,
+        },
+      })
+      await prisma.user.update({ where: { id: user.id }, data: { plan: 'paid' } })
+      premium = { until: CAMPAIGN_END.toISOString() }
+      log.info({ user: user.id }, 'launch campaign: granted free premium')
+    } catch (e) {
+      log.error({ err: String(e), user: user.id }, 'launch campaign grant failed')
+    }
+  }
+
   setCookie(res, signToken({ sub: user.id }))
-  res.json({ id: user.id, email: user.email, plan: user.plan })
+  res.json({ id: user.id, email: user.email, plan: premium ? 'paid' : user.plan, premium })
+})
+
+// Public: campaign status + end date, for the landing banner/countdown.
+router.get('/campaign', (_req, res) => {
+  res.json({ active: campaignActive(), endsAt: CAMPAIGN_END.toISOString() })
 })
 
 router.post('/login', async (req, res) => {
