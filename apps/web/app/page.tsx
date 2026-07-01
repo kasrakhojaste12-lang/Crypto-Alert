@@ -115,7 +115,7 @@ export default function Home() {
           <Logo className="h-5 w-auto" />
           {t('الرت کی — هشدار قیمت ارز دیجیتال', 'Alert Key — crypto price alerts')}
         </div>
-        <div className="mb-6 flex justify-center">
+        <div className="mb-6 flex items-center justify-center gap-4">
           {/* Enamad trust seal — referrerPolicy=origin lets Enamad verify the domain */}
           {/* eslint-disable-next-line react/jsx-no-target-blank */}
           <a
@@ -131,6 +131,11 @@ export default function Home() {
               style={{ cursor: 'pointer' }}
               {...({ code: 'kh6ufFn09c4PTC0RsilJJjeVt4JfOOHw' } as any)}
             />
+          </a>
+          {/* Zibal trust badge — zibal.ir is Iran-hosted, loads fine inside Iran */}
+          <a href="https://gateway.zibal.ir/trustMe/alertkey.ir" target="_blank" rel="noopener">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img style={{ maxWidth: 110, height: 'auto' }} src="https://zibal.ir/trust/assets/2.png" alt="Zibal" />
           </a>
         </div>
       </footer>

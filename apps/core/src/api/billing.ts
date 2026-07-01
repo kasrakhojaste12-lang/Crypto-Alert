@@ -34,7 +34,7 @@ router.post('/checkout', requireAuth, async (req: AuthedRequest, res) => {
     data: { userId: req.userId!, amount: rial, status: 'pending', zibalOrderId: orderId },
   })
   const token = jwt.sign(
-    { orderId, amount: rial, returnUrl: `${WEB}/billing/result` },
+    { orderId, amount: rial, returnUrl: `${WEB}/billing/result`, description: 'اشتراک الرت کی' },
     BRIDGE_SECRET,
     { expiresIn: '30m' },
   )

@@ -24,13 +24,13 @@ const app = express()
 
 // trackId -> payment context. ponytail: in-memory; pending payments are short
 // lived, and Zibal also echoes orderId back on the callback as a fallback.
-const pending = new Map<string, { orderId: string; returnUrl: string }>()
+const pending = new Map<string, { orderId: string; returnUrl: string; amount: number }>()
 
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
 // Start payment: validate token, create a Zibal request, redirect to Zibal.
 app.get('/pay', async (req, res) => {
-  let claims: { orderId: string; amount: number; returnUrl: string }
+  let claims: { orderId: string; amount: number; returnUrl: string; description?: string }
   try {
     claims = jwt.verify(String(req.query.token), SECRET) as typeof claims
   } catch {
@@ -45,11 +45,12 @@ app.get('/pay', async (req, res) => {
         amount: claims.amount, // Rial
         callbackUrl: `${BRIDGE_BASE}/callback`,
         orderId: claims.orderId,
+        description: claims.description, // shown in Zibal's merchant reports
       }),
     })
     const data = await r.json()
     if (data.result !== 100) return res.status(502).send(`Zibal request failed: ${data.message || data.result}`)
-    pending.set(String(data.trackId), { orderId: claims.orderId, returnUrl: claims.returnUrl })
+    pending.set(String(data.trackId), { orderId: claims.orderId, returnUrl: claims.returnUrl, amount: claims.amount })
     res.redirect(`${ZIBAL}/start/${data.trackId}`)
   } catch (e) {
     res.status(502).send('Zibal unreachable')
@@ -74,6 +75,12 @@ app.get('/callback', async (req, res) => {
       })
       const data = await r.json()
       verified = data.result === 100 || data.result === 201 // 201 = already verified
+      // Money-path guard: the paid amount must match what we requested. Zibal
+      // enforces this server-side, but reject on any mismatch as defence in depth
+      // (skip only if we lost ctx to a restart or Zibal omitted the field).
+      if (verified && ctx && data.amount != null && Number(data.amount) !== ctx.amount) {
+        verified = false
+      }
     } catch {
       verified = false
     }
