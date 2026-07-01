@@ -148,6 +148,14 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
             />
           </div>
 
+          {isLogin && (
+            <div className="text-end">
+              <Link href="/forgot" className="text-xs text-slate-400 hover:text-brand">
+                {t('رمز عبور را فراموش کرده‌اید؟', 'Forgot password?')}
+              </Link>
+            </div>
+          )}
+
           {!isLogin && (
             <div className="space-y-2">
               <label className="block text-sm text-slate-400">{t('تکرار رمز عبور', 'Confirm password')}</label>
