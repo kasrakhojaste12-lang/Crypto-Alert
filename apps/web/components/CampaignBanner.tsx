@@ -59,7 +59,7 @@ export function CampaignBanner() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-950/70">
-                {t('پایان پیشنهاد تا', 'Offer ends in')}
+                {t('تا پایان پیشنهاد', 'Offer ends in')}
               </p>
               <Countdown endsAt={campaign.endsAt} />
             </div>
