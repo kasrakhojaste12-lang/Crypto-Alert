@@ -21,10 +21,11 @@ export const toman = (rial: number, lang: Lang) => fmtNum(Math.round(rial / 10),
 
 export interface AlertShape {
   symbol: string
-  type: 'price' | 'percent'
+  type: 'price' | 'percent' | 'candle_close'
   direction: 'above' | 'below'
   target: number
   percentBasis: 'h24' | 'since_created' | null
+  timeframe?: string | null
   repeat: 'one_time' | 'recurring'
   maxFires?: number | null
   status: string
@@ -35,11 +36,13 @@ export function describeAlert(a: AlertShape, lang: Lang): string {
   if (lang === 'en') {
     const dir = a.direction === 'above' ? 'above' : 'below'
     if (a.type === 'price') return `Price ${dir} ${fmtPrice(a.target, lang)}`
+    if (a.type === 'candle_close') return `${a.timeframe} candle closes ${dir} ${fmtPrice(a.target, lang)}`
     const basis = a.percentBasis === 'h24' ? '24h change' : 'change since created'
     return `${basis} ${dir} ${fmtNum(a.target, lang)}%`
   }
   const dir = a.direction === 'above' ? 'بالاتر از' : 'پایین‌تر از'
   if (a.type === 'price') return `قیمت ${dir} ${fmtPrice(a.target, lang)}`
+  if (a.type === 'candle_close') return `بسته‌شدن کندل ${a.timeframe} ${dir} ${fmtPrice(a.target, lang)}`
   const basis = a.percentBasis === 'h24' ? 'تغییر ۲۴ ساعته' : 'تغییر از زمان ایجاد'
   return `${basis} ${dir} ${fmtNum(a.target, lang)}٪`
 }

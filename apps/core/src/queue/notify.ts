@@ -11,9 +11,10 @@ export interface NotifyJob {
   symbol: string
   price: number
   direction: 'above' | 'below'
-  type: 'price' | 'percent'
+  type: 'price' | 'percent' | 'candle_close'
   target: number
   percentBasis: 'h24' | 'since_created' | null
+  timeframe?: string | null // candle_close only
 }
 
 export const notifyQueue = new Queue<NotifyJob>(NOTIFY_QUEUE, { connection: newRedis() })

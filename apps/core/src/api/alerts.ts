@@ -14,19 +14,25 @@ const channelInput = z.object({
   identifier: z.string().optional(), // resolved server-side for telegram
 })
 
+export const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d'] as const
+
 const alertInput = z
   .object({
     symbol: z.string().min(3).transform((s) => s.toUpperCase()),
-    type: z.enum(['price', 'percent']),
+    type: z.enum(['price', 'percent', 'candle_close']),
     direction: z.enum(['above', 'below']),
     target: z.number(),
     percentBasis: z.enum(['h24', 'since_created']).nullish(),
+    timeframe: z.enum(TIMEFRAMES).nullish(), // candle_close only
     repeat: z.enum(['one_time', 'recurring']).default('one_time'),
     maxFires: z.number().int().positive().max(1000).nullish(), // recurring only; null = unlimited
     channels: z.array(channelInput).min(1),
   })
   .refine((d) => d.type !== 'percent' || !!d.percentBasis, {
     message: 'percentBasis required for percent alerts',
+  })
+  .refine((d) => d.type !== 'candle_close' || !!d.timeframe, {
+    message: 'timeframe required for candle_close alerts',
   })
 
 const patchInput = z.object({
@@ -122,6 +128,7 @@ router.post('/', async (req: AuthedRequest, res) => {
       target: p.data.target,
       percentBasis: p.data.percentBasis ?? null,
       basePrice,
+      timeframe: p.data.type === 'candle_close' ? p.data.timeframe ?? null : null,
       repeat: p.data.repeat,
       // maxFires only applies to recurring alerts
       maxFires: p.data.repeat === 'recurring' ? p.data.maxFires ?? null : null,
@@ -145,7 +152,7 @@ router.patch('/:id', async (req: AuthedRequest, res) => {
   const updated = await prisma.alert.update({ where: { id: a.id }, data })
 
   if (updated.status === 'active') engine.upsert(updated)
-  else engine.remove(updated.id, updated.symbol)
+  else engine.remove(updated.id)
   res.json(serialize(updated))
 })
 
@@ -153,7 +160,7 @@ router.delete('/:id', async (req: AuthedRequest, res) => {
   const a = await prisma.alert.findFirst({ where: { id: req.params.id, userId: req.userId } })
   if (!a) return res.status(404).json({ error: 'not_found' })
   await prisma.alert.delete({ where: { id: a.id } })
-  engine.remove(a.id, a.symbol)
+  engine.remove(a.id)
   res.json({ ok: true })
 })
 

@@ -23,11 +23,12 @@ model Alert {
   userId        String
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   symbol        String // e.g. BTCUSDT
-  type          String // price | percent
+  type          String // price | percent | candle_close
   direction     String // above | below
   target        Decimal // price level, or percent threshold
   percentBasis  String? // h24 | since_created  (percent only)
   basePrice     Decimal? // price at creation    (since_created only)
+  timeframe     String? // 1m|5m|15m|1h|4h|1d    (candle_close only)
   repeat        String         @default("one_time") // one_time | recurring
   maxFires      Int? // recurring only: stop after this many fires (null = unlimited)
   status        String         @default("active") // active | triggered | paused | disarmed

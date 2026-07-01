@@ -1,7 +1,7 @@
 import { prisma } from '../lib/db'
 import { log } from '../lib/log'
 import { enqueueNotification } from '../queue/notify'
-import { crosses, rearmed, reachedFireCap, metricValue, type Direction } from './crossing'
+import { crosses, rearmed, closedPast, reachedFireCap, metricValue, type Direction } from './crossing'
 
 type Snap = { price: number; changePct: number }
 
@@ -11,11 +11,12 @@ interface AlertState {
   id: string
   userId: string
   symbol: string
-  type: 'price' | 'percent'
+  type: 'price' | 'percent' | 'candle_close'
   direction: Direction
   target: number
   percentBasis: 'h24' | 'since_created' | null
   basePrice: number | null
+  timeframe: string | null // candle_close only (e.g. '4h')
   repeat: 'one_time' | 'recurring'
   maxFires: number | null // recurring cap; null = unlimited
   status: string // only 'active' | 'disarmed' alerts live in the map
@@ -33,6 +34,7 @@ function toState(r: any): AlertState {
     target: Number(r.target),
     percentBasis: r.percentBasis ?? null,
     basePrice: r.basePrice == null ? null : Number(r.basePrice),
+    timeframe: r.timeframe ?? null,
     repeat: r.repeat,
     maxFires: r.maxFires ?? null,
     status: r.status,
@@ -41,10 +43,15 @@ function toState(r: any): AlertState {
   }
 }
 
+const isCandle = (s: AlertState) => s.type === 'candle_close' && !!s.timeframe
+const candleKey = (symbol: string, timeframe: string) => `${symbol}|${timeframe}`
+
 // In-memory matcher. ponytail: single-instance map mutated directly by the API
 // in the same process; add Redis pub/sub to sync when sharding across instances.
 class Engine {
-  private bySymbol = new Map<string, Map<string, AlertState>>()
+  private bySymbol = new Map<string, Map<string, AlertState>>() // tick alerts (price/percent)
+  private candles = new Map<string, Map<string, AlertState>>() // candle_close, key `${symbol}|${tf}`
+  private byId = new Map<string, AlertState>() // index so remove(id) finds the right bucket
   private lastSnap = new Map<string, Snap>()
 
   async loadActive() {
@@ -58,16 +65,40 @@ class Engine {
   }
 
   private put(s: AlertState) {
-    let m = this.bySymbol.get(s.symbol)
+    const prev = this.byId.get(s.id)
+    if (prev) this.detach(prev) // upsert: drop the old copy (symbol/type may have changed)
+    this.byId.set(s.id, s)
+    const [map, key] = isCandle(s)
+      ? [this.candles, candleKey(s.symbol, s.timeframe!)]
+      : [this.bySymbol, s.symbol]
+    let m = map.get(key)
     if (!m) {
       m = new Map()
-      this.bySymbol.set(s.symbol, m)
+      map.set(key, m)
     }
     m.set(s.id, s)
   }
 
-  remove(id: string, symbol: string) {
-    this.bySymbol.get(symbol)?.delete(id)
+  private detach(s: AlertState) {
+    if (isCandle(s)) this.candles.get(candleKey(s.symbol, s.timeframe!))?.delete(s.id)
+    else this.bySymbol.get(s.symbol)?.delete(s.id)
+    this.byId.delete(s.id)
+  }
+
+  remove(id: string) {
+    const s = this.byId.get(id)
+    if (s) this.detach(s)
+  }
+
+  // Kline streams the candle feed should subscribe to (one per live symbol+tf).
+  neededStreams(): string[] {
+    const out: string[] = []
+    for (const [key, m] of this.candles) {
+      if (!m.size) continue
+      const [symbol, tf] = key.split('|')
+      out.push(`${symbol.toLowerCase()}@kline_${tf}`)
+    }
+    return out
   }
 
   lastPrice(symbol: string): number | null {
@@ -104,7 +135,24 @@ class Engine {
     this.lastSnap.set(symbol, { price, changePct })
   }
 
-  // Sync state changes happen here (so the next tick can't double-fire);
+  // Called by the candle feed for each FULLY-CLOSED candle (never intrabar), so
+  // there's no false-trigger risk from mid-candle price movement.
+  onCandleClose(symbol: string, interval: string, close: number) {
+    const bucket = this.candles.get(candleKey(symbol, interval))
+    if (!bucket || !bucket.size) return
+    for (const a of bucket.values()) {
+      if (a.status === 'active') {
+        if (closedPast(close, a.target, a.direction)) this.fire(a, close)
+      } else if (a.status === 'disarmed') {
+        if (rearmed(close, a.target, a.direction)) {
+          a.status = 'active'
+          void prisma.alert.update({ where: { id: a.id }, data: { status: 'active' } }).catch(() => {})
+        }
+      }
+    }
+  }
+
+  // Sync state changes happen here (so the next tick/close can't double-fire);
   // DB write + enqueue are deferred to persist().
   private fire(a: AlertState, price: number) {
     a.fireCount += 1
@@ -112,7 +160,7 @@ class Engine {
     // Recurring alerts re-arm (disarmed) unless they've hit their fire cap.
     const next = reachedFireCap(a.repeat, a.fireCount, a.maxFires) ? 'triggered' : 'disarmed'
     a.status = next
-    if (next === 'triggered') this.remove(a.id, a.symbol)
+    if (next === 'triggered') this.remove(a.id)
     void this.persist(a, seq, price, next)
   }
 
@@ -137,6 +185,7 @@ class Engine {
         type: a.type,
         target: a.target,
         percentBasis: a.percentBasis,
+        timeframe: a.timeframe,
       })
     }
     log.info({ alert: a.id, symbol: a.symbol, price, seq }, 'alert fired')

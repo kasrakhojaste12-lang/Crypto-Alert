@@ -1,6 +1,6 @@
 // Runnable self-check for the money/logic path. `npm test` (tsx) runs this.
 import assert from 'node:assert'
-import { crosses, rearmed, reachedFireCap, metricValue } from './crossing'
+import { crosses, rearmed, closedPast, reachedFireCap, metricValue } from './crossing'
 
 // ── price "above" ──────────────────────────────────────────────────
 assert.equal(crosses(99, 101, 100, 'above'), true, 'rises through target -> fire')
@@ -16,6 +16,16 @@ assert.equal(crosses(99, 98, 100, 'below'), false, 'already below -> no re-fire'
 assert.equal(rearmed(99, 100, 'above'), true, 'above alert re-arms when back below')
 assert.equal(rearmed(101, 100, 'above'), false, 'still above -> not re-armed')
 assert.equal(rearmed(101, 100, 'below'), true, 'below alert re-arms when back above')
+
+// ── candle close (level test on the closed candle) ─────────────────
+assert.equal(closedPast(101, 100, 'above'), true, 'close above target fires')
+assert.equal(closedPast(100, 100, 'above'), true, 'exact close counts as above')
+assert.equal(closedPast(99, 100, 'above'), false, 'close below target -> no fire for above')
+assert.equal(closedPast(99, 100, 'below'), true, 'close below target fires')
+assert.equal(closedPast(101, 100, 'below'), false, 'close above target -> no fire for below')
+// re-arm is the exact complement (recurring waits for a close back on the other side)
+assert.equal(closedPast(101, 100, 'above'), !rearmed(101, 100, 'above'), 'fire = not re-armed (above)')
+assert.equal(closedPast(99, 100, 'below'), !rearmed(99, 100, 'below'), 'fire = not re-armed (below)')
 
 // ── recurring fire cap ─────────────────────────────────────────────
 assert.equal(reachedFireCap('one_time', 1, null), true, 'one_time always terminal after its fire')

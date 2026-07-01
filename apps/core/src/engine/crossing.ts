@@ -33,6 +33,15 @@ export function rearmed(curr: number, target: number, dir: Direction): boolean {
   return curr > target
 }
 
+// Candle-close alerts are evaluated once per CLOSED candle, so there's no prev
+// value / crossing to track — the close itself is the signal. An armed alert
+// fires when the closed candle's close is on its side of the target. Re-arming
+// (for recurring) reuses rearmed(), which is the exact complement.
+export function closedPast(close: number, target: number, dir: Direction): boolean {
+  if (dir === 'above') return close >= target
+  return close <= target
+}
+
 // Whether an alert should stop permanently after this fire. one_time always
 // stops; recurring stops once it has fired maxFires times (null = unlimited).
 // `fireCount` is the post-increment count (i.e. how many times it has now fired).

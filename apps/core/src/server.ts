@@ -7,6 +7,7 @@ import { log } from './lib/log'
 import { engine } from './engine/match'
 import { startFeed } from './engine/binance'
 import { startRestFeed } from './engine/restfeed'
+import { startCandleFeed } from './engine/candles'
 import authRouter from './api/auth'
 import alertsRouter from './api/alerts'
 import channelsRouter from './api/channels'
@@ -43,6 +44,17 @@ app.post('/api/dev/tick', (req, res) => {
   res.json({ ok: true })
 })
 
+// Dev-only synthetic candle-close injection (mirrors /api/dev/tick) for testing
+// candle_close alerts without the live kline feed. Gated by DEV_TICK=1.
+app.post('/api/dev/candle', (req, res) => {
+  if (process.env.DEV_TICK !== '1') return res.status(404).end()
+  const { symbol, interval, close } = req.body ?? {}
+  if (!symbol || !interval || close == null)
+    return res.status(400).json({ error: 'symbol_interval_close_required' })
+  engine.onCandleClose(String(symbol).toUpperCase(), String(interval), Number(close))
+  res.json({ ok: true })
+})
+
 const PORT = Number(process.env.CORE_PORT || 4000) // dev feed: /api/dev/tick
 
 async function main() {
@@ -52,6 +64,7 @@ async function main() {
   // FEED_MODE=rest polls REST (WS blocked locally); default 'ws' for production.
   if ((process.env.FEED_MODE || 'ws') === 'rest') startRestFeed()
   else startFeed()
+  startCandleFeed() // candle-close alerts (kline WS, or REST poll in rest mode)
   app.listen(PORT, () => log.info(`core API listening on ${PORT}`))
 }
 

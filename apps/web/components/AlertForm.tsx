@@ -7,10 +7,12 @@ import { useUser } from '@/lib/useUser'
 import { useT } from '@/lib/i18n'
 import { SymbolPicker, LivePrice } from './SymbolPicker'
 
-type Type = 'price' | 'percent'
+type Type = 'price' | 'percent' | 'candle_close'
 type Dir = 'above' | 'below'
 type Basis = 'h24' | 'since_created'
 type Repeat = 'one_time' | 'recurring'
+type TF = '1m' | '5m' | '15m' | '1h' | '4h' | '1d'
+const TIMEFRAMES: TF[] = ['1m', '5m', '15m', '1h', '4h', '1d']
 
 function Seg<T extends string>({
   value,
@@ -56,6 +58,7 @@ export function AlertForm() {
   const [symbol, setSymbol] = useState('')
   const [type, setType] = useState<Type>('price')
   const [basis, setBasis] = useState<Basis>('h24')
+  const [timeframe, setTimeframe] = useState<TF>('1h')
   const [direction, setDirection] = useState<Dir>('above')
   const [target, setTarget] = useState('')
   const [repeat, setRepeat] = useState<Repeat>('one_time')
@@ -98,6 +101,7 @@ export function AlertForm() {
           direction,
           target: Number(target),
           percentBasis: type === 'percent' ? basis : null,
+          timeframe: type === 'candle_close' ? timeframe : null,
           repeat,
           maxFires: maxFiresNum,
           channels,
@@ -132,9 +136,36 @@ export function AlertForm() {
           options={[
             { value: 'price', label: t('قیمت', 'Price') },
             { value: 'percent', label: t('درصد تغییر', 'Percent change') },
+            { value: 'candle_close', label: t('بسته‌شدن کندل', 'Candle close') },
           ]}
         />
       </Field>
+
+      {type === 'candle_close' && (
+        <Field label={t('تایم‌فریم کندل', 'Candle timeframe')}>
+          <div className="inline-flex flex-wrap gap-1 rounded-xl border border-slate-700 bg-slate-900 p-1">
+            {TIMEFRAMES.map((tf) => (
+              <button
+                key={tf}
+                type="button"
+                onClick={() => setTimeframe(tf)}
+                dir="ltr"
+                className={`px-3 py-1.5 rounded-lg text-sm transition ${
+                  timeframe === tf ? 'bg-brand text-slate-950 font-semibold' : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500">
+            {t(
+              'هشدار فقط پس از بسته‌شدن کامل کندل این تایم‌فریم بررسی می‌شود؛ نوسانات داخل کندل باعث اعلان اشتباه نمی‌شوند.',
+              'Evaluated only after this timeframe’s candle fully closes — intrabar swings never cause a false alert.',
+            )}
+          </p>
+        </Field>
+      )}
 
       {type === 'percent' && (
         <Field label={t('مبنای درصد', 'Percent basis')}>
@@ -160,16 +191,16 @@ export function AlertForm() {
         />
       </Field>
 
-      <Field label={type === 'price' ? t('قیمت هدف', 'Target price') : t('درصد هدف', 'Target percent')}>
+      <Field label={type === 'percent' ? t('درصد هدف', 'Target percent') : t('قیمت هدف', 'Target price')}>
         <input
           type="number"
           step="any"
           value={target}
           onChange={(e) => setTarget(e.target.value)}
-          placeholder={type === 'price' ? t('مثلاً 70000', 'e.g. 70000') : t('مثلاً 5', 'e.g. 5')}
+          placeholder={type === 'percent' ? t('مثلاً 5', 'e.g. 5') : t('مثلاً 70000', 'e.g. 70000')}
           className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
         />
-        {type === 'price' && symbol && (
+        {type !== 'percent' && symbol && (
           <div className="text-xs text-slate-500 flex gap-1">
             {t('قیمت فعلی:', 'Current price:')} <LivePrice symbol={symbol} />
           </div>
