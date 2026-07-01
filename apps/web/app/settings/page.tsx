@@ -27,7 +27,7 @@ function Settings() {
   }
 
   const activeAlerts = fmtNum(user?.activeAlerts ?? 0, lang)
-  const cap = user?.plan === 'paid' ? '∞' : fmtNum(user?.freeLimit ?? 3, lang)
+  const cap = fmtNum(user?.alertLimit ?? 3, lang)
 
   return (
     <div className="space-y-6">

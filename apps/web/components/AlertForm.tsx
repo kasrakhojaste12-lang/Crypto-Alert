@@ -97,7 +97,9 @@ export function AlertForm() {
       router.push('/dashboard')
     } catch (e) {
       const err = e as ApiError
-      if (err.status === 402) setUpgrade(true)
+      if (err.status === 402 && err.message === 'limit_reached')
+        setError(t('به سقف ۳۰ هشدار رسیده‌اید. برای ساخت هشدار جدید، یکی را حذف کنید.', "You've reached the 30-alert limit. Delete one to create another."))
+      else if (err.status === 402) setUpgrade(true)
       else if (err.message === 'telegram_not_linked') setError(t('ابتدا تلگرام خود را متصل کنید.', 'Link your Telegram first.'))
       else if (err.message === 'invalid_discord_webhook') setError(t('آدرس وبهوک دیسکورد معتبر نیست.', 'The Discord webhook URL is invalid.'))
       else if (err.message === 'no_price_yet')

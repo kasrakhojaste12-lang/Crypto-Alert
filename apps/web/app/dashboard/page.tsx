@@ -40,7 +40,7 @@ function Dashboard() {
   }
 
   const used = user?.activeAlerts ?? 0
-  const limit = user?.freeLimit ?? 3
+  const limit = user?.alertLimit ?? 3
   const paid = user?.plan === 'paid'
 
   return (
@@ -55,33 +55,32 @@ function Dashboard() {
         </Link>
       </div>
 
-      {/* Free-tier counter */}
+      {/* Alert-count meter */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-        {paid ? (
-          <p className="text-sm text-brand">{t('اشتراک فعال — هشدار نامحدود', 'Active subscription — unlimited alerts')}</p>
-        ) : (
-          <>
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-slate-300">
-                {t(
+        <div className="flex justify-between text-sm mb-2">
+          <span className="text-slate-300">
+            {paid
+              ? t(
+                  `${fmtNum(Math.min(used, limit), lang)} از ${fmtNum(limit, lang)} هشدار`,
+                  `${fmtNum(Math.min(used, limit), lang)} of ${fmtNum(limit, lang)} alerts`,
+                )
+              : t(
                   `${fmtNum(Math.min(used, limit), lang)} از ${fmtNum(limit, lang)} هشدار رایگان`,
                   `${fmtNum(Math.min(used, limit), lang)} of ${fmtNum(limit, lang)} free alerts`,
                 )}
-              </span>
-              {used >= limit && (
-                <Link href="/billing" className="text-brand">
-                  {t('ارتقا ←', 'Upgrade →')}
-                </Link>
-              )}
-            </div>
-            <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-              <div
-                className="h-full bg-brand transition-all"
-                style={{ width: `${Math.min(100, (used / limit) * 100)}%` }}
-              />
-            </div>
-          </>
-        )}
+          </span>
+          {!paid && used >= limit && (
+            <Link href="/billing" className="text-brand">
+              {t('ارتقا ←', 'Upgrade →')}
+            </Link>
+          )}
+        </div>
+        <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+          <div
+            className="h-full bg-brand transition-all"
+            style={{ width: `${Math.min(100, (used / limit) * 100)}%` }}
+          />
+        </div>
       </div>
 
       {/* Alerts list */}

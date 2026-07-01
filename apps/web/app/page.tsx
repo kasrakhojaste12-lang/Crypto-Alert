@@ -97,8 +97,8 @@ export default function Home() {
           <h2 className="text-xl font-bold">{t('آمادهٔ ساختن اولین هشدار؟', 'Ready to build your first alert?')}</h2>
           <p className="text-sm text-slate-400">
             {t(
-              'ثبت‌نام در کمتر از یک دقیقه. هشدار نامحدود با اشتراک ماهانه و پرداخت امن از طریق زیبال.',
-              'Sign up in under a minute. Unlimited alerts with a monthly subscription, paid securely via Zibal.',
+              'ثبت‌نام در کمتر از یک دقیقه. تا ۳۰ هشدار با اشتراک ماهانه و پرداخت امن از طریق زیبال.',
+              'Sign up in under a minute. Up to 30 alerts with a monthly subscription, paid securely via Zibal.',
             )}
           </p>
           <Link

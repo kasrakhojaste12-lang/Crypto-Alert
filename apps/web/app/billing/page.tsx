@@ -47,7 +47,7 @@ function Billing() {
           <>
             <p className="text-lg font-semibold text-brand">{t('اشتراک فعال', 'Active subscription')}</p>
             <p className="text-sm text-slate-400">
-              {t(`تا تاریخ ${expiry} — هشدار نامحدود`, `Until ${expiry} — unlimited alerts`)}
+              {t(`تا تاریخ ${expiry} — تا ۳۰ هشدار`, `Until ${expiry} — up to 30 alerts`)}
             </p>
           </>
         ) : (
@@ -58,7 +58,7 @@ function Billing() {
       <div className="rounded-2xl border border-brand/30 bg-brand/5 p-6 space-y-4">
         <div>
           <p className="font-semibold text-brand">{t('اشتراک ماهانه', 'Monthly subscription')}</p>
-          <p className="text-sm text-slate-400 mt-1">{t('هشدار نامحدود، همهٔ کانال‌ها', 'Unlimited alerts, all channels')}</p>
+          <p className="text-sm text-slate-400 mt-1">{t('تا ۳۰ هشدار، همهٔ کانال‌ها', 'Up to 30 alerts, all channels')}</p>
         </div>
         <p className="text-2xl font-bold">
           {price ? toman(price.rial, lang) : '…'}{' '}

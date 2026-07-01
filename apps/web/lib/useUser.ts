@@ -9,6 +9,7 @@ export interface User {
   telegramLinked: boolean
   activeAlerts: number
   freeLimit: number
+  alertLimit: number
   subscription: { status: string; periodEnd: string | null } | null
 }
 

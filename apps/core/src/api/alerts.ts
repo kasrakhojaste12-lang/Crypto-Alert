@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/db'
 import { requireAuth, type AuthedRequest } from '../lib/auth'
 import { engine } from '../engine/match'
-import { FREE_ALERT_LIMIT, activeAlertCount, hasActiveSubscription } from '../lib/limits'
+import { FREE_ALERT_LIMIT, PAID_ALERT_LIMIT, activeAlertCount, hasActiveSubscription } from '../lib/limits'
 import { isDiscordWebhook } from '../dispatch/discord'
 
 const router = Router()
@@ -81,10 +81,13 @@ router.post('/', async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId } })
   if (!user) return res.status(401).json({ error: 'unauthorized' })
 
-  // Free-tier guard
+  // Alert-count guard: free = 3, paid = 30. Paid users at the cap get a distinct
+  // code so the UI shows "limit reached" instead of an upgrade prompt.
   const count = await activeAlertCount(user.id)
-  if (count >= FREE_ALERT_LIMIT && !(await hasActiveSubscription(user.id)))
-    return res.status(402).json({ error: 'upgrade_required', limit: FREE_ALERT_LIMIT })
+  const paid = await hasActiveSubscription(user.id)
+  const limit = paid ? PAID_ALERT_LIMIT : FREE_ALERT_LIMIT
+  if (count >= limit)
+    return res.status(402).json({ error: paid ? 'limit_reached' : 'upgrade_required', limit })
 
   let channels
   try {

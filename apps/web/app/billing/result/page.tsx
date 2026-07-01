@@ -22,7 +22,7 @@ function Result() {
         <h1 className="text-xl font-bold">{ok ? t('پرداخت موفق', 'Payment successful') : t('پرداخت ناموفق', 'Payment failed')}</h1>
         <p className="text-sm text-slate-400">
           {ok
-            ? t('اشتراک شما فعال شد. اکنون می‌توانید هشدار نامحدود بسازید.', 'Your subscription is active. You can now create unlimited alerts.')
+            ? t('اشتراک شما فعال شد. اکنون می‌توانید تا ۳۰ هشدار بسازید.', 'Your subscription is active. You can now create up to 30 alerts.')
             : t('پرداخت انجام نشد یا لغو شد.', 'The payment did not complete or was cancelled.')}
         </p>
         <Link

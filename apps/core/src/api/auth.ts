@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/db'
 import { signToken } from '../lib/jwt'
 import { requireAuth, type AuthedRequest } from '../lib/auth'
-import { FREE_ALERT_LIMIT, activeAlertCount } from '../lib/limits'
+import { FREE_ALERT_LIMIT, PAID_ALERT_LIMIT, activeAlertCount } from '../lib/limits'
 import { sendEmail } from '../dispatch/email'
 import { passwordResetEmail } from '../dispatch/emails'
 import { signReset, resetSubject, verifyReset } from '../lib/reset'
@@ -144,6 +144,7 @@ router.get('/me', requireAuth, async (req: AuthedRequest, res) => {
     telegramLinked: !!user.telegramChatId,
     activeAlerts,
     freeLimit: FREE_ALERT_LIMIT,
+    alertLimit: sub ? PAID_ALERT_LIMIT : FREE_ALERT_LIMIT,
     subscription: sub,
   })
 })
