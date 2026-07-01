@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { useT } from '@/lib/i18n'
 import { LangToggle } from '@/components/LangToggle'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
 import { TelegramBanner } from '@/components/TelegramBanner'
 
@@ -44,6 +45,7 @@ export default function Home() {
             {t('الرت کی', 'Alert Key')}
           </span>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <LangToggle />
             <Link href="/login" className="text-sm text-slate-400 hover:text-white transition">
               {t('ورود', 'Login')}

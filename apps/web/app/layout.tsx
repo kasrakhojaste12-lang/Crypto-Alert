@@ -11,11 +11,15 @@ export const metadata: Metadata = {
   other: { enamad: '26970244' }, // Enamad trust-badge verification
 }
 
+// Applies the saved (or OS-preferred) theme before first paint to avoid a flash.
+const THEME_INIT = `try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&matchMedia('(prefers-color-scheme: light)').matches)){document.documentElement.classList.add('light')}}catch(e){}`
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   // Default to fa/rtl on the server; LangProvider flips it client-side per choice.
   return (
-    <html lang="fa" dir="rtl">
+    <html lang="fa" dir="rtl" suppressHydrationWarning>
       <body className="font-sans min-h-screen">
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
         <LangProvider>{children}</LangProvider>
       </body>
     </html>

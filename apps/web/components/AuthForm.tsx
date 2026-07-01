@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { api, type ApiError } from '@/lib/api'
 import { useLang, useT } from '@/lib/i18n'
 import { LangToggle } from '@/components/LangToggle'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
 
 const SITEKEY = process.env.NEXT_PUBLIC_TURNSTILE_SITEKEY
@@ -111,7 +112,8 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
 
   return (
     <div className="relative min-h-screen grid place-items-center px-4">
-      <div className="absolute top-4 end-4">
+      <div className="absolute top-4 end-4 flex items-center gap-2">
+        <ThemeToggle />
         <LangToggle />
       </div>
       <div className="w-full max-w-sm">

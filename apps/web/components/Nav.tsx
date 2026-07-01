@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { useT } from '@/lib/i18n'
 import { LangToggle } from '@/components/LangToggle'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
 import type { User } from '@/lib/useUser'
 
@@ -55,6 +56,7 @@ export function Nav({ user }: { user: User }) {
             <NavLinks path={path} />
           </nav>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <ThemeToggle />
             <LangToggle />
             <span
               className={`text-xs px-2.5 py-1 rounded-full whitespace-nowrap ${
