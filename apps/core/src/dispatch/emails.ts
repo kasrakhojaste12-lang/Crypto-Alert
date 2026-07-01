@@ -23,9 +23,9 @@ export function passwordResetEmail(link: string): { subject: string; text: strin
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b1120;padding:32px 12px;">
 <tr><td align="center">
 <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#111827;border:1px solid #1f2937;border-radius:16px;overflow:hidden;">
-<tr><td style="padding:30px 32px 6px;text-align:center;">
-<span style="font-size:22px;font-weight:bold;color:#10b981;">⚡ الرت کی</span>
-<div style="color:#64748b;font-size:11px;letter-spacing:2px;margin-top:4px;">ALERT KEY</div>
+<tr><td style="padding:28px 32px 6px;text-align:center;">
+<img src="https://alertkey.ir/logo-email.png" alt="الرت کی" width="113" height="72" style="width:113px;height:72px;display:inline-block;border:0;outline:none;text-decoration:none;">
+<div style="color:#64748b;font-size:11px;letter-spacing:2px;margin-top:10px;">ALERT KEY</div>
 </td></tr>
 <tr><td style="padding:14px 32px 0;text-align:center;">
 <h1 style="margin:0;color:#f1f5f9;font-size:20px;font-weight:bold;">بازنشانی رمز عبور</h1>
