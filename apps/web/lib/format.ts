@@ -26,6 +26,7 @@ export interface AlertShape {
   target: number
   percentBasis: 'h24' | 'since_created' | null
   repeat: 'one_time' | 'recurring'
+  maxFires?: number | null
   status: string
 }
 
@@ -63,6 +64,9 @@ const REPEAT_LABEL: Record<string, { fa: string; en: string }> = {
   one_time: { fa: 'یک‌بار', en: 'One-time' },
   recurring: { fa: 'تکرارشونده', en: 'Recurring' },
 }
-export function repeatLabel(repeat: string, lang: Lang): string {
-  return REPEAT_LABEL[repeat]?.[lang] ?? repeat
+export function repeatLabel(repeat: string, lang: Lang, maxFires?: number | null): string {
+  const base = REPEAT_LABEL[repeat]?.[lang] ?? repeat
+  if (repeat === 'recurring' && maxFires != null)
+    return lang === 'fa' ? `${base} (تا ${fmtNum(maxFires, lang)} بار)` : `${base} (up to ${fmtNum(maxFires, lang)}×)`
+  return base
 }

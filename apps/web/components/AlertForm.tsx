@@ -59,6 +59,7 @@ export function AlertForm() {
   const [direction, setDirection] = useState<Dir>('above')
   const [target, setTarget] = useState('')
   const [repeat, setRepeat] = useState<Repeat>('one_time')
+  const [maxFires, setMaxFires] = useState('') // recurring only; blank = unlimited
 
   const [chTelegram, setChTelegram] = useState(true)
   const [chDiscord, setChDiscord] = useState(false)
@@ -74,6 +75,13 @@ export function AlertForm() {
     setUpgrade(false)
     if (!symbol) return setError(t('یک نماد انتخاب کنید', 'Select a pair'))
     if (!target || Number.isNaN(Number(target))) return setError(t('مقدار هدف معتبر نیست', 'Target value is invalid'))
+
+    let maxFiresNum: number | null = null
+    if (repeat === 'recurring' && maxFires.trim() !== '') {
+      maxFiresNum = Number(maxFires)
+      if (!Number.isInteger(maxFiresNum) || maxFiresNum < 1)
+        return setError(t('حداکثر دفعات تکرار باید عددی صحیح و حداقل ۱ باشد', 'Max repeats must be a whole number of at least 1'))
+    }
 
     const channels: { type: string; identifier?: string }[] = []
     if (chTelegram) channels.push({ type: 'telegram' })
@@ -91,6 +99,7 @@ export function AlertForm() {
           target: Number(target),
           percentBasis: type === 'percent' ? basis : null,
           repeat,
+          maxFires: maxFiresNum,
           channels,
         }),
       })
@@ -177,6 +186,26 @@ export function AlertForm() {
           ]}
         />
       </Field>
+
+      {repeat === 'recurring' && (
+        <Field label={t('حداکثر دفعات تکرار (اختیاری)', 'Max repeats (optional)')}>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={maxFires}
+            onChange={(e) => setMaxFires(e.target.value)}
+            placeholder={t('بدون محدودیت', 'Unlimited')}
+            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
+          />
+          <p className="text-xs text-slate-500">
+            {t(
+              'پس از این تعداد اعلان، هشدار متوقف می‌شود تا شما را اسپم نکند. خالی بگذارید تا نامحدود باشد.',
+              'The alert stops after this many notifications so it never spams you. Leave blank for unlimited.',
+            )}
+          </p>
+        </Field>
+      )}
 
       <Field label={t('کانال‌های اعلان', 'Notification channels')}>
         <div className="space-y-2">

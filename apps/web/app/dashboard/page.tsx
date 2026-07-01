@@ -114,7 +114,7 @@ function Dashboard() {
                   </div>
                   <p className="text-sm text-slate-400 mt-0.5">{describeAlert(a, lang)}</p>
                   <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                    <span>{repeatLabel(a.repeat, lang)}</span>
+                    <span>{repeatLabel(a.repeat, lang, a.maxFires)}</span>
                     <span>·</span>
                     <span>{a.channels.map((c) => CHANNEL_ICON[c.type] ?? c.type).join(' ')}</span>
                   </div>

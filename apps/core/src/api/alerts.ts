@@ -22,6 +22,7 @@ const alertInput = z
     target: z.number(),
     percentBasis: z.enum(['h24', 'since_created']).nullish(),
     repeat: z.enum(['one_time', 'recurring']).default('one_time'),
+    maxFires: z.number().int().positive().max(1000).nullish(), // recurring only; null = unlimited
     channels: z.array(channelInput).min(1),
   })
   .refine((d) => d.type !== 'percent' || !!d.percentBasis, {
@@ -122,6 +123,8 @@ router.post('/', async (req: AuthedRequest, res) => {
       percentBasis: p.data.percentBasis ?? null,
       basePrice,
       repeat: p.data.repeat,
+      // maxFires only applies to recurring alerts
+      maxFires: p.data.repeat === 'recurring' ? p.data.maxFires ?? null : null,
       status: 'active',
       channels,
     },

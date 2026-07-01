@@ -29,6 +29,7 @@ model Alert {
   percentBasis  String? // h24 | since_created  (percent only)
   basePrice     Decimal? // price at creation    (since_created only)
   repeat        String         @default("one_time") // one_time | recurring
+  maxFires      Int? // recurring only: stop after this many fires (null = unlimited)
   status        String         @default("active") // active | triggered | paused | disarmed
   channels      Json // [{ type: telegram|discord|email, identifier }]
   fireCount     Int            @default(0)

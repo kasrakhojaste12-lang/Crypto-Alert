@@ -32,3 +32,15 @@ export function rearmed(curr: number, target: number, dir: Direction): boolean {
   if (dir === 'above') return curr < target
   return curr > target
 }
+
+// Whether an alert should stop permanently after this fire. one_time always
+// stops; recurring stops once it has fired maxFires times (null = unlimited).
+// `fireCount` is the post-increment count (i.e. how many times it has now fired).
+export function reachedFireCap(
+  repeat: 'one_time' | 'recurring',
+  fireCount: number,
+  maxFires: number | null | undefined,
+): boolean {
+  if (repeat === 'one_time') return true
+  return maxFires != null && fireCount >= maxFires
+}

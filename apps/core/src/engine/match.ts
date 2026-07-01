@@ -1,7 +1,7 @@
 import { prisma } from '../lib/db'
 import { log } from '../lib/log'
 import { enqueueNotification } from '../queue/notify'
-import { crosses, rearmed, metricValue, type Direction } from './crossing'
+import { crosses, rearmed, reachedFireCap, metricValue, type Direction } from './crossing'
 
 type Snap = { price: number; changePct: number }
 
@@ -17,6 +17,7 @@ interface AlertState {
   percentBasis: 'h24' | 'since_created' | null
   basePrice: number | null
   repeat: 'one_time' | 'recurring'
+  maxFires: number | null // recurring cap; null = unlimited
   status: string // only 'active' | 'disarmed' alerts live in the map
   fireCount: number
   channels: Channel[]
@@ -33,6 +34,7 @@ function toState(r: any): AlertState {
     percentBasis: r.percentBasis ?? null,
     basePrice: r.basePrice == null ? null : Number(r.basePrice),
     repeat: r.repeat,
+    maxFires: r.maxFires ?? null,
     status: r.status,
     fireCount: r.fireCount,
     channels: (r.channels as Channel[]) ?? [],
@@ -107,7 +109,8 @@ class Engine {
   private fire(a: AlertState, price: number) {
     a.fireCount += 1
     const seq = a.fireCount
-    const next = a.repeat === 'one_time' ? 'triggered' : 'disarmed'
+    // Recurring alerts re-arm (disarmed) unless they've hit their fire cap.
+    const next = reachedFireCap(a.repeat, a.fireCount, a.maxFires) ? 'triggered' : 'disarmed'
     a.status = next
     if (next === 'triggered') this.remove(a.id, a.symbol)
     void this.persist(a, seq, price, next)

@@ -1,6 +1,6 @@
 // Runnable self-check for the money/logic path. `npm test` (tsx) runs this.
 import assert from 'node:assert'
-import { crosses, rearmed, metricValue } from './crossing'
+import { crosses, rearmed, reachedFireCap, metricValue } from './crossing'
 
 // ── price "above" ──────────────────────────────────────────────────
 assert.equal(crosses(99, 101, 100, 'above'), true, 'rises through target -> fire')
@@ -16,6 +16,14 @@ assert.equal(crosses(99, 98, 100, 'below'), false, 'already below -> no re-fire'
 assert.equal(rearmed(99, 100, 'above'), true, 'above alert re-arms when back below')
 assert.equal(rearmed(101, 100, 'above'), false, 'still above -> not re-armed')
 assert.equal(rearmed(101, 100, 'below'), true, 'below alert re-arms when back above')
+
+// ── recurring fire cap ─────────────────────────────────────────────
+assert.equal(reachedFireCap('one_time', 1, null), true, 'one_time always terminal after its fire')
+assert.equal(reachedFireCap('recurring', 1, null), false, 'recurring unlimited never caps')
+assert.equal(reachedFireCap('recurring', 1, 3), false, 'recurring 1/3 -> keep going')
+assert.equal(reachedFireCap('recurring', 2, 3), false, 'recurring 2/3 -> keep going')
+assert.equal(reachedFireCap('recurring', 3, 3), true, 'recurring 3/3 -> stop at cap')
+assert.equal(reachedFireCap('recurring', 4, 3), true, 'recurring past cap -> stop')
 
 // ── metric selection ───────────────────────────────────────────────
 assert.equal(
