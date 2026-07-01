@@ -10,6 +10,16 @@ type Sym = { symbol: string; base: string; quote: string }
 let cache: Sym[] | null = null
 let known = new Set<string>()
 
+// USD/EUR-pegged stablecoins on Binance. Pairs where BOTH legs are stablecoins
+// (e.g. USDCUSDT, FDUSDUSDT, DAIUSDT) are dropped from the list — a ~1:1 peg
+// isn't something anyone sets a price alert on. Extend if Binance lists a new one.
+const STABLES = new Set([
+  'USDT', 'USDC', 'FDUSD', 'TUSD', 'BUSD', 'DAI', 'USDP', 'PYUSD', 'USD1',
+  'USDD', 'GUSD', 'USTC', 'AEUR', 'EURI',
+])
+const isStablePair = (s: { baseAsset: string; quoteAsset: string }) =>
+  STABLES.has(s.baseAsset) && STABLES.has(s.quoteAsset)
+
 // Fetch every TRADING pair (USDT-quoted first) and update the cache. Returns any
 // symbols that are new since the last refresh — i.e. pairs Binance just listed.
 export async function refreshSymbols(): Promise<{ total: number; added: string[] }> {
@@ -26,7 +36,7 @@ export async function refreshSymbols(): Promise<{ total: number; added: string[]
     for (const t of (await tkRes.json()) as any[]) vol.set(t.symbol, Number(t.quoteVolume) || 0)
   }
   const list: Sym[] = data.symbols
-    .filter((s: any) => s.status === 'TRADING')
+    .filter((s: any) => s.status === 'TRADING' && !isStablePair(s))
     .map((s: any) => ({ symbol: s.symbol, base: s.baseAsset, quote: s.quoteAsset }))
     .sort((a: Sym, b: Sym) => {
       // USDT pairs first: quoteVolume is only comparable within one quote asset
