@@ -6,6 +6,7 @@ import { useUser } from '@/lib/useUser'
 import { useLang, useT } from '@/lib/i18n'
 import { Shell } from '@/components/Shell'
 import { CoinIcon } from '@/components/CoinIcon'
+import { TelegramBanner } from '@/components/TelegramBanner'
 import { describeAlert, fmtNum, baseOf, statusInfo, repeatLabel, type AlertShape } from '@/lib/format'
 
 interface Alert extends AlertShape {
@@ -45,6 +46,8 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <TelegramBanner className="rounded-2xl" />
+
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">{t('هشدارهای من', 'My alerts')}</h1>
         <Link
