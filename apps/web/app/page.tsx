@@ -131,6 +131,13 @@ export default function Home() {
               src="https://trustseal.enamad.ir/logo.aspx?id=751293&Code=kh6ufFn09c4PTC0RsilJJjeVt4JfOOHw"
               alt="Enamad"
               style={{ cursor: 'pointer', minHeight: 90 }}
+              // Enamad blocks foreign IPs; if the live seal fails to load, fall
+              // back to the origin-hosted copy so overseas users don't see a
+              // broken icon. Iranian users still load it live (verification intact).
+              onError={(e) => {
+                const el = e.currentTarget
+                if (!el.src.endsWith('/enamad-seal.png')) el.src = '/enamad-seal.png'
+              }}
               {...({ code: 'kh6ufFn09c4PTC0RsilJJjeVt4JfOOHw' } as any)}
             />
           </a>
