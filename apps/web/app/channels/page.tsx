@@ -4,6 +4,7 @@ import { api } from '@/lib/api'
 import { useUser } from '@/lib/useUser'
 import { useT } from '@/lib/i18n'
 import { Shell } from '@/components/Shell'
+import { TelegramIcon, DiscordIcon } from '@/components/BrandIcons'
 
 export default function ChannelsPage() {
   return (
@@ -36,7 +37,7 @@ function Channels() {
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xl">✈️</span>
+            <TelegramIcon className="h-6 w-6" />
             <span className="font-semibold">{t('تلگرام', 'Telegram')}</span>
           </div>
           <span
@@ -88,7 +89,7 @@ function Channels() {
       {/* Discord */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-2">
         <div className="flex items-center gap-2">
-          <span className="text-xl">🎮</span>
+          <DiscordIcon className="h-6 w-6" />
           <span className="font-semibold">{t('دیسکورد', 'Discord')}</span>
         </div>
         <p className="text-sm text-slate-400">
