@@ -6,6 +6,7 @@ import { signToken } from '../lib/jwt'
 import { requireAuth, type AuthedRequest } from '../lib/auth'
 import { FREE_ALERT_LIMIT, activeAlertCount } from '../lib/limits'
 import { sendEmail } from '../dispatch/email'
+import { passwordResetEmail } from '../dispatch/emails'
 import { signReset, resetSubject, verifyReset } from '../lib/reset'
 import { log } from '../lib/log'
 
@@ -102,12 +103,9 @@ router.post('/forgot-password', async (req, res) => {
   const user = await prisma.user.findUnique({ where: { email: p.data.email } })
   if (user) {
     const link = `${WEB}/reset?token=${signReset(user.id, user.passwordHash)}`
+    const { subject, text, html } = passwordResetEmail(link)
     try {
-      await sendEmail(
-        user.email,
-        'بازنشانی رمز عبور الرت کی · Alert Key password reset',
-        `برای بازنشانی رمز عبور حساب الرت کی خود روی لینک زیر کلیک کنید (اعتبار: ۳۰ دقیقه):\n${link}\nاگر این درخواست از شما نبوده، این ایمیل را نادیده بگیرید.\n\nAlert Key password reset — this link expires in 30 minutes:\n${link}\nIf you didn't request this, ignore this email.`,
-      )
+      await sendEmail(user.email, subject, text, html)
     } catch (e) {
       log.error({ err: String(e) }, 'password reset email failed')
     }
