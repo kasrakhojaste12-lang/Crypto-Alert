@@ -4,6 +4,7 @@ import '@fontsource/vazirmatn/700.css'
 import './globals.css'
 import type { Metadata } from 'next'
 import { LangProvider } from '@/lib/i18n'
+import { SupportBubble } from '@/components/SupportBubble'
 
 export const metadata: Metadata = {
   title: 'الرت کی — Alert Key',
@@ -20,7 +21,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fa" dir="rtl" suppressHydrationWarning>
       <body className="font-sans min-h-screen">
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
-        <LangProvider>{children}</LangProvider>
+        <LangProvider>
+          {children}
+          <SupportBubble />
+        </LangProvider>
       </body>
     </html>
   )
