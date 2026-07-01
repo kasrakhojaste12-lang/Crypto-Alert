@@ -6,11 +6,24 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
 import { TelegramBanner } from '@/components/TelegramBanner'
 
+function FeatureIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      {children}
+    </svg>
+  )
+}
+
 export default function Home() {
   const t = useT()
   const features = [
     {
-      icon: '🔔',
+      icon: (
+        <FeatureIcon>
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </FeatureIcon>
+      ),
       title: t('هشدار قیمت و درصد', 'Price & percent alerts'),
       body: t(
         'برای رسیدن به یک قیمت مشخص یا درصد تغییر ۲۴ ساعته، دقیقاً همان لحظه باخبر شو.',
@@ -18,7 +31,14 @@ export default function Home() {
       ),
     },
     {
-      icon: '🪙',
+      icon: (
+        <FeatureIcon>
+          <circle cx="8" cy="8" r="6" />
+          <path d="M18.09 10.37A6 6 0 1 1 10.34 18" />
+          <path d="M7 6h1v4" />
+          <path d="m16.71 13.88.7.71-2.82 2.82" />
+        </FeatureIcon>
+      ),
       title: t('همهٔ جفت‌ارزهای بایننس', 'Every Binance pair'),
       body: t(
         'روی هر جفت‌ارز فعال بایننس هشدار بساز — جفت‌ارزهای جدید هم خودکار اضافه می‌شوند.',
@@ -26,7 +46,11 @@ export default function Home() {
       ),
     },
     {
-      icon: '⚡',
+      icon: (
+        <FeatureIcon>
+          <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+        </FeatureIcon>
+      ),
       title: t('اعلان تلگرام و دیسکورد', 'Telegram & Discord'),
       body: t(
         'پیام فوری در تلگرام یا دیسکورد، بدون تأخیر و بدون اسپم؛ هر هشدار فقط یک‌بار.',
@@ -89,7 +113,7 @@ export default function Home() {
       <section className="mx-auto max-w-3xl px-4 pb-16 grid gap-4 sm:grid-cols-3">
         {features.map((f) => (
           <div key={f.title} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-2">
-            <div className="text-2xl">{f.icon}</div>
+            <div className="text-brand">{f.icon}</div>
             <h2 className="font-semibold">{f.title}</h2>
             <p className="text-sm text-slate-400 leading-relaxed">{f.body}</p>
           </div>
