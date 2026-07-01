@@ -126,16 +126,18 @@ export default function Home() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               referrerPolicy="origin"
+              loading="lazy"
+              decoding="async"
               src="https://trustseal.enamad.ir/logo.aspx?id=751293&Code=kh6ufFn09c4PTC0RsilJJjeVt4JfOOHw"
               alt="Enamad"
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', minHeight: 90 }}
               {...({ code: 'kh6ufFn09c4PTC0RsilJJjeVt4JfOOHw' } as any)}
             />
           </a>
           {/* Zibal trust badge — zibal.ir is Iran-hosted, loads fine inside Iran */}
           <a href="https://gateway.zibal.ir/trustMe/alertkey.ir" target="_blank" rel="noopener">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img style={{ maxWidth: 110, height: 'auto' }} src="https://zibal.ir/trust/assets/2.png" alt="Zibal" />
+            <img loading="lazy" decoding="async" style={{ maxWidth: 110, height: 'auto' }} src="https://zibal.ir/trust/assets/2.png" alt="Zibal" />
           </a>
         </div>
       </footer>
