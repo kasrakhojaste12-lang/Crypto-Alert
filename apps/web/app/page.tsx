@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useT } from '@/lib/i18n'
+import { useUser } from '@/lib/useUser'
 import { LangToggle } from '@/components/LangToggle'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
@@ -16,6 +17,7 @@ function FeatureIcon({ children }: { children: React.ReactNode }) {
 
 export default function Home() {
   const t = useT()
+  const { user } = useUser()
   const features = [
     {
       icon: (
@@ -64,16 +66,25 @@ export default function Home() {
       <TelegramBanner />
       <header className="mx-auto max-w-3xl px-4">
         <div className="h-14 flex items-center justify-between">
-          <span className="flex items-center gap-2 font-bold text-brand whitespace-nowrap">
+          <Link href="/" className="flex items-center gap-2 font-bold text-brand whitespace-nowrap">
             <Logo className="h-8 w-auto" />
             {t('الرت کی', 'Alert Key')}
-          </span>
+          </Link>
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <LangToggle />
-            <Link href="/login" className="text-sm text-slate-400 hover:text-white transition">
-              {t('ورود', 'Login')}
-            </Link>
+            {user ? (
+              <Link
+                href="/dashboard"
+                className="rounded-xl bg-brand px-4 py-1.5 text-sm font-semibold text-slate-950 hover:bg-brand-dark transition"
+              >
+                {t('داشبورد', 'Dashboard')}
+              </Link>
+            ) : (
+              <Link href="/login" className="text-sm text-slate-400 hover:text-white transition">
+                {t('ورود', 'Login')}
+              </Link>
+            )}
           </div>
         </div>
       </header>
