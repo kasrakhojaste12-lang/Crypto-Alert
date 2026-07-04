@@ -14,6 +14,12 @@ router.post('/telegram/link', async (req: AuthedRequest, res) => {
   res.json({ code, url: `https://t.me/${username}?start=${code}` })
 })
 
+// Disconnect Telegram so the user can link a different account.
+router.post('/telegram/unlink', async (req: AuthedRequest, res) => {
+  await prisma.user.update({ where: { id: req.userId }, data: { telegramChatId: null } })
+  res.json({ ok: true })
+})
+
 router.get('/status', async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId } })
   res.json({ telegram: !!user?.telegramChatId, email: user?.email })

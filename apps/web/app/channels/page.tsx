@@ -29,6 +29,17 @@ function Channels() {
     }
   }
 
+  async function unlink() {
+    setBusy(true)
+    try {
+      await api('/api/channels/telegram/unlink', { method: 'POST' })
+      setLink(null)
+      await mutate()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-bold">{t('کانال‌های اعلان', 'Notification channels')}</h1>
@@ -50,9 +61,21 @@ function Channels() {
         </div>
 
         {user?.telegramLinked ? (
-          <p className="text-sm text-slate-400">
-            {t('حساب تلگرام شما متصل است و هشدارها را دریافت می‌کنید.', "Your Telegram is connected and you'll receive alerts.")}
-          </p>
+          <>
+            <p className="text-sm text-slate-400">
+              {t('حساب تلگرام شما متصل است و هشدارها را دریافت می‌کنید.', "Your Telegram is connected and you'll receive alerts.")}
+            </p>
+            <button
+              onClick={unlink}
+              disabled={busy}
+              className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:border-red-500/60 hover:text-red-400 disabled:opacity-50"
+            >
+              {busy ? '...' : t('قطع اتصال تلگرام', 'Disconnect Telegram')}
+            </button>
+            <p className="text-xs text-slate-500">
+              {t('برای تغییر حساب، ابتدا قطع اتصال کنید و سپس دوباره متصل شوید.', 'To switch accounts, disconnect first, then connect again.')}
+            </p>
+          </>
         ) : (
           <>
             <p className="text-sm text-slate-400">
