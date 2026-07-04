@@ -3,6 +3,7 @@ import '@fontsource/vazirmatn/500.css'
 import '@fontsource/vazirmatn/700.css'
 import './globals.css'
 import type { Metadata } from 'next'
+import Script from 'next/script'
 import { LangProvider } from '@/lib/i18n'
 import { SupportBubble } from '@/components/SupportBubble'
 
@@ -20,6 +21,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fa" dir="rtl" suppressHydrationWarning>
       <body className="font-sans min-h-screen">
+        {/* Google Analytics (gtag.js) */}
+        <Script src="https://www.googletagmanager.com/gtag/js?id=G-BMCYYP1SZ2" strategy="afterInteractive" />
+        <Script id="ga-gtag" strategy="afterInteractive">{`
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-BMCYYP1SZ2');
+`}</Script>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
         <LangProvider>
           {children}
