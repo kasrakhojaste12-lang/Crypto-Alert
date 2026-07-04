@@ -59,5 +59,20 @@ engine.onCandleClose('BTCUSDT', '1m', 101) // no 1m alert now -> nothing happens
 assert.deepEqual(engine.neededStreams(), ['btcusdt@kline_4h'], '4h alert untouched by 1m close')
 engine.remove('c3')
 
+// ── immediate-fire: a price alert already met at create-time fires at once ──
+const priceAlert = (id: string, symbol: string, target: number, repeat: 'one_time' | 'recurring') => ({
+  id, userId: 'u1', symbol, type: 'price' as const, direction: 'above' as const,
+  target, percentBasis: null, basePrice: null, timeframe: null,
+  repeat, maxFires: null, status: 'active', fireCount: 0, channels: [] as unknown[],
+})
+engine.onTick('XRPUSDT', 1.5, 0) // seed lastSnap (no alert yet -> no fire)
+engine.upsert(priceAlert('m1', 'XRPUSDT', 1.0, 'one_time')) // 1.5 >= 1.0 -> fires now
+assert.ok(!engine.watchedSymbols().includes('XRPUSDT'), 'already-met one_time price alert fires immediately and self-removes')
+
+engine.onTick('ADAUSDT', 0.5, 0) // seed below target
+engine.upsert(priceAlert('m2', 'ADAUSDT', 1.0, 'one_time')) // 0.5 < 1.0 -> stays armed
+assert.ok(engine.watchedSymbols().includes('ADAUSDT'), 'not-yet-met alert stays armed (no immediate fire)')
+engine.remove('m2')
+
 console.log('candle.integration.test: all assertions passed ✓')
 process.exit(0) // release the (unused) Redis handle created at import

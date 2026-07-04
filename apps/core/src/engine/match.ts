@@ -61,7 +61,22 @@ class Engine {
   }
 
   upsert(alert: any) {
-    this.put(toState(alert))
+    const s = toState(alert)
+    this.put(s)
+    this.fireIfMet(s.id)
+  }
+
+  // Creation / re-activation convenience: if a just-armed PRICE alert's condition
+  // is ALREADY true at the latest tick, fire once now — users expect "above X" to
+  // notify when the price is already above X, not only on a future up-cross.
+  // Called only from upsert() (the API create/patch path), never from
+  // loadActive(), so a restart never re-fires already-met alerts. Percent/candle
+  // alerts keep pure crossing/close semantics.
+  fireIfMet(id: string) {
+    const a = this.byId.get(id)
+    if (!a || a.status !== 'active' || a.type !== 'price') return
+    const price = this.lastSnap.get(a.symbol)?.price
+    if (price != null && closedPast(price, a.target, a.direction)) this.fire(a, price)
   }
 
   private put(s: AlertState) {
