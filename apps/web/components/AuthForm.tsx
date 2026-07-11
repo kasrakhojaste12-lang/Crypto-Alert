@@ -10,6 +10,7 @@ import { Logo } from '@/components/Logo'
 import { WelcomeModal } from '@/components/WelcomeModal'
 
 const SITEKEY = process.env.NEXT_PUBLIC_TURNSTILE_SITEKEY
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
 
 declare global {
   interface Window {
@@ -17,6 +18,14 @@ declare global {
       render: (el: HTMLElement, opts: Record<string, unknown>) => string
       remove: (id: string) => void
       reset: (id?: string) => void
+    }
+    google?: {
+      accounts: {
+        id: {
+          initialize: (opts: Record<string, unknown>) => void
+          renderButton: (el: HTMLElement, opts: Record<string, unknown>) => void
+        }
+      }
     }
   }
 }
@@ -33,6 +42,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const [token, setToken] = useState('')
   const [premiumUntil, setPremiumUntil] = useState<string | null>(null) // set => show welcome modal
   const boxRef = useRef<HTMLDivElement>(null)
+  const googleBoxRef = useRef<HTMLDivElement>(null)
   const widgetId = useRef<string | undefined>(undefined)
 
   const isLogin = mode === 'login'
@@ -79,6 +89,65 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       }
     }
   }, [lang])
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return
+    let cancelled = false
+    const render = () => {
+      if (cancelled || !window.google || !googleBoxRef.current) return
+      googleBoxRef.current.replaceChildren()
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        ux_mode: 'popup',
+        callback: ({ credential }: { credential: string }) => void submitGoogle(credential),
+      })
+      window.google.accounts.id.renderButton(googleBoxRef.current, {
+        type: 'standard',
+        theme: 'outline_dark',
+        size: 'large',
+        text: isLogin ? 'signin_with' : 'signup_with',
+        shape: 'rectangular',
+        locale: lang,
+        width: googleBoxRef.current.clientWidth,
+      })
+    }
+    const SCRIPT_ID = 'google-identity-services'
+    document.getElementById(SCRIPT_ID)?.remove()
+    const s = document.createElement('script')
+    s.id = SCRIPT_ID
+    s.src = `https://accounts.google.com/gsi/client?hl=${lang}`
+    s.async = true
+    s.addEventListener('load', render)
+    document.head.appendChild(s)
+    return () => {
+      cancelled = true
+      s.removeEventListener('load', render)
+      s.remove()
+    }
+  }, [isLogin, lang])
+
+  async function submitGoogle(credential: string) {
+    setError(null)
+    setBusy(true)
+    const messages: Record<string, string> = {
+      account_exists_use_password: t('این حساب را با رمز عبور وارد شوید.', 'This account must be accessed with its password.'),
+      invalid_google_credential: t('ورود با گوگل ناموفق بود. دوباره تلاش کنید.', 'Google sign-in failed. Please try again.'),
+      google_auth_unavailable: t('ورود با گوگل موقتاً در دسترس نیست.', 'Google sign-in is temporarily unavailable.'),
+    }
+    try {
+      const resp = await api('/api/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ credential }),
+      })
+      if (resp?.premium?.until) setPremiumUntil(resp.premium.until)
+      else router.push('/dashboard')
+    } catch (e) {
+      const err = e as ApiError
+      setError(messages[err.message] || t('خطایی رخ داد', 'Something went wrong'))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -131,6 +200,16 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         </div>
 
         <form onSubmit={submit} className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+          {GOOGLE_CLIENT_ID && (
+            <>
+              <div ref={googleBoxRef} className="flex min-h-10 w-full justify-center" />
+              <div className="flex items-center gap-3 text-xs text-slate-500" aria-hidden="true">
+                <span className="h-px flex-1 bg-slate-800" />
+                {t('یا', 'or')}
+                <span className="h-px flex-1 bg-slate-800" />
+              </div>
+            </>
+          )}
           <div className="space-y-2">
             <label className="block text-sm text-slate-400">{t('ایمیل', 'Email')}</label>
             <input

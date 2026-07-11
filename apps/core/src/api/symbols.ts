@@ -9,6 +9,9 @@ const REFRESH_MS = Number(process.env.SYMBOLS_REFRESH_MS || 3600_000)
 type Sym = { symbol: string; base: string; quote: string }
 let cache: Sym[] | null = null
 let known = new Set<string>()
+type PriceHit = { price: number; expires: number }
+// ponytail: unbounded Map, but bounded by the Binance symbol universe; prune if that ever grows materially.
+const priceCache = new Map<string, PriceHit | Promise<number | null>>()
 
 // USD/EUR-pegged stablecoins on Binance. Pairs where BOTH legs are stablecoins
 // (e.g. USDCUSDT, FDUSDUSDT, DAIUSDT) are dropped from the list — a ~1:1 peg
@@ -87,12 +90,46 @@ router.get('/', async (_req, res) => {
   res.json(cache)
 })
 
-// Live price snapshot from the engine (populated by the feed).
-router.get('/price/:symbol', (req, res) => {
+async function restPrice(symbol: string): Promise<number | null> {
+  const hit = priceCache.get(symbol)
+  if (hit instanceof Promise) return hit
+  if (hit && hit.expires > Date.now()) return hit.price
+
+  const pending = (async () => {
+    const r = await fetch(`${REST}/api/v3/ticker/price?symbol=${encodeURIComponent(symbol)}`, {
+      signal: AbortSignal.timeout(8000),
+    })
+    if (r.status >= 400 && r.status < 500) return null
+    if (!r.ok) throw new Error(`ticker price ${r.status}`)
+    const price = Number(((await r.json()) as { price?: unknown }).price)
+    return Number.isFinite(price) && price > 0 ? price : null
+  })()
+  priceCache.set(symbol, pending)
+  try {
+    const price = await pending
+    if (price == null) priceCache.delete(symbol)
+    else priceCache.set(symbol, { price, expires: Date.now() + 5000 })
+    return price
+  } catch (e) {
+    priceCache.delete(symbol)
+    throw e
+  }
+}
+
+export async function currentPrice(symbol: string): Promise<number | null> {
+  return engine.lastPrice(symbol) ?? restPrice(symbol)
+}
+
+// Prefer the engine snapshot; selectable symbols without alerts fall back to REST.
+router.get('/price/:symbol', async (req, res) => {
   const symbol = req.params.symbol.toUpperCase()
-  const price = engine.lastPrice(symbol)
-  if (price == null) return res.status(404).json({ error: 'no_price' })
-  res.json({ symbol, price })
+  try {
+    const price = await currentPrice(symbol)
+    if (price == null) return res.status(404).json({ error: 'no_price' })
+    res.json({ symbol, price })
+  } catch {
+    res.status(502).json({ error: 'binance_unreachable' })
+  }
 })
 
 // Coin icons proxied through the origin so they work from Iran, where the client

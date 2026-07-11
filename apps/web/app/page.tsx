@@ -189,6 +189,7 @@ export default function Home() {
             <img loading="lazy" decoding="async" style={{ maxWidth: 110, height: 'auto' }} src="https://zibal.ir/trust/assets/2.png" alt="Zibal" />
           </a>
         </div>
+        <p>{t('کلیه حقوق مادی و معنوی این وب‌سایت متعلق به الرت کی است.', 'All intellectual property rights are reserved by AlertKey.')}</p>
       </footer>
     </main>
   )

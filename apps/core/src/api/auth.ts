@@ -1,5 +1,7 @@
 import { Router, type Response } from 'express'
 import bcrypt from 'bcryptjs'
+import { randomBytes } from 'node:crypto'
+import { OAuth2Client } from 'google-auth-library'
 import { z } from 'zod'
 import { prisma } from '../lib/db'
 import { signToken } from '../lib/jwt'
@@ -8,12 +10,15 @@ import { FREE_ALERT_LIMIT, PAID_ALERT_LIMIT, activeAlertCount } from '../lib/lim
 import { sendEmail } from '../dispatch/email'
 import { passwordResetEmail } from '../dispatch/emails'
 import { signReset, resetSubject, verifyReset } from '../lib/reset'
-import { CAMPAIGN_END, campaignActive } from '../lib/campaign'
+import { CAMPAIGN_END, campaignActive, grantCampaignPremium } from '../lib/campaign'
 import { log } from '../lib/log'
+import { googleEmail, isGoogleAccount, markGooglePassword, passwordDigest, preserveGoogleLogin } from '../lib/google'
 
 const router = Router()
 const cred = z.object({ email: z.string().email(), password: z.string().min(6) })
 const WEB = process.env.WEB_BASE_URL || 'http://localhost:3000'
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null
 
 // Cloudflare Turnstile. If no secret is configured (e.g. local dev), captcha is
 // skipped so the flow still works; set TURNSTILE_SECRET in prod to enforce it.
@@ -60,28 +65,45 @@ router.post('/register', async (req, res) => {
   const passwordHash = await bcrypt.hash(p.data.password, 10)
   const user = await prisma.user.create({ data: { email: p.data.email, passwordHash } })
 
-  // Launch campaign: grant free Premium until the campaign end date. Best-effort
-  // — a grant failure must never block the account from being created.
-  let premium: { until: string } | null = null
-  if (campaignActive()) {
-    try {
-      const now = new Date()
-      await prisma.subscription.create({
-        data: {
-          userId: user.id, plan: 'paid', status: 'active', amount: 0,
-          periodStart: now, periodEnd: CAMPAIGN_END, zibalOrderId: `launch-${user.id}`,
-        },
-      })
-      await prisma.user.update({ where: { id: user.id }, data: { plan: 'paid' } })
-      premium = { until: CAMPAIGN_END.toISOString() }
-      log.info({ user: user.id }, 'launch campaign: granted free premium')
-    } catch (e) {
-      log.error({ err: String(e), user: user.id }, 'launch campaign grant failed')
-    }
-  }
+  const premium = await grantCampaignPremium(user.id)
 
   setCookie(res, signToken({ sub: user.id }))
   res.json({ id: user.id, email: user.email, plan: premium ? 'paid' : user.plan, premium })
+})
+
+router.post('/google', async (req, res) => {
+  const p = z.object({ credential: z.string().min(1) }).safeParse(req.body)
+  if (!p.success) return res.status(400).json({ error: 'invalid_input' })
+  if (!googleClient || !GOOGLE_CLIENT_ID)
+    return res.status(503).json({ error: 'google_auth_unavailable' })
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: p.data.credential,
+      audience: GOOGLE_CLIENT_ID,
+    })
+    const identity = googleEmail(ticket.getPayload() || {})
+    if (!identity) return res.status(401).json({ error: 'invalid_google_credential' })
+
+    let user = await prisma.user.findFirst({
+      where: { email: { equals: identity.email, mode: 'insensitive' } },
+    })
+    if (user && !identity.authoritative && !isGoogleAccount(user.passwordHash))
+      return res.status(409).json({ error: 'account_exists_use_password' })
+
+    let premium: { until: string } | null = null
+    if (!user) {
+      const passwordHash = markGooglePassword(await bcrypt.hash(randomBytes(32).toString('hex'), 10))
+      user = await prisma.user.create({ data: { email: identity.email, passwordHash } })
+      premium = await grantCampaignPremium(user.id)
+    }
+
+    setCookie(res, signToken({ sub: user.id }))
+    res.json({ id: user.id, email: user.email, plan: premium ? 'paid' : user.plan, premium })
+  } catch (e) {
+    log.warn({ err: String(e) }, 'google authentication failed')
+    res.status(401).json({ error: 'invalid_google_credential' })
+  }
 })
 
 // Public: campaign status + end date, for the landing banner/countdown.
@@ -95,7 +117,7 @@ router.post('/login', async (req, res) => {
   if (!(await captchaOk(req.body?.turnstileToken, req.ip)))
     return res.status(400).json({ error: 'captcha_failed' })
   const user = await prisma.user.findUnique({ where: { email: p.data.email } })
-  if (!user || !(await bcrypt.compare(p.data.password, user.passwordHash)))
+  if (!user || !(await bcrypt.compare(p.data.password, passwordDigest(user.passwordHash))))
     return res.status(401).json({ error: 'invalid_credentials' })
   setCookie(res, signToken({ sub: user.id }))
   res.json({ id: user.id, email: user.email, plan: user.plan })
@@ -113,9 +135,9 @@ router.post('/change-password', requireAuth, async (req: AuthedRequest, res) => 
     .safeParse(req.body)
   if (!p.success) return res.status(400).json({ error: 'invalid_input' })
   const user = await prisma.user.findUnique({ where: { id: req.userId } })
-  if (!user || !(await bcrypt.compare(p.data.currentPassword, user.passwordHash)))
+  if (!user || !(await bcrypt.compare(p.data.currentPassword, passwordDigest(user.passwordHash))))
     return res.status(401).json({ error: 'wrong_password' })
-  const passwordHash = await bcrypt.hash(p.data.newPassword, 10)
+  const passwordHash = preserveGoogleLogin(user.passwordHash, await bcrypt.hash(p.data.newPassword, 10))
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash } })
   res.json({ ok: true })
 })
@@ -149,7 +171,7 @@ router.post('/reset-password', async (req, res) => {
   const user = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null
   if (!user || !verifyReset(p.data.token, user.id, user.passwordHash))
     return res.status(400).json({ error: 'invalid_token' })
-  const passwordHash = await bcrypt.hash(p.data.newPassword, 10)
+  const passwordHash = preserveGoogleLogin(user.passwordHash, await bcrypt.hash(p.data.newPassword, 10))
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash } })
   res.json({ ok: true })
 })
