@@ -202,7 +202,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         <form onSubmit={submit} className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
           {GOOGLE_CLIENT_ID && (
             <>
-              <div ref={googleBoxRef} className="flex min-h-10 w-full justify-center" />
+              <div ref={googleBoxRef} className="flex h-10 w-full items-center justify-center overflow-hidden" />
               <div className="flex items-center gap-3 text-xs text-slate-500" aria-hidden="true">
                 <span className="h-px flex-1 bg-slate-800" />
                 {t('یا', 'or')}
