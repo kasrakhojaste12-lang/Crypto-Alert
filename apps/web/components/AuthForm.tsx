@@ -103,7 +103,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       })
       window.google.accounts.id.renderButton(googleBoxRef.current, {
         type: 'standard',
-        theme: 'outline_dark',
+        theme: 'filled_black',
         size: 'large',
         text: isLogin ? 'signin_with' : 'signup_with',
         shape: 'rectangular',
