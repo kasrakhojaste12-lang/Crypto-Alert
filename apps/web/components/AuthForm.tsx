@@ -7,6 +7,7 @@ import { useLang, useT } from '@/lib/i18n'
 import { LangToggle } from '@/components/LangToggle'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
+import { GoogleIcon } from '@/components/BrandIcons'
 import { WelcomeModal } from '@/components/WelcomeModal'
 
 const SITEKEY = process.env.NEXT_PUBLIC_TURNSTILE_SITEKEY
@@ -46,6 +47,11 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const widgetId = useRef<string | undefined>(undefined)
 
   const isLogin = mode === 'login'
+
+  // Always call the latest submit handler from the GIS callback (which is bound
+  // once at init), so a language switch doesn't leave it on a stale closure.
+  const submitGoogleRef = useRef<(credential: string) => void>(() => {})
+  submitGoogleRef.current = submitGoogle
 
   // Cloudflare Turnstile widget; re-rendered when the language changes.
   useEffect(() => {
@@ -90,6 +96,11 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     }
   }, [lang])
 
+  // Google Identity Services renders an un-restylable iframe button, so we hide
+  // it (opacity-0, overlaid) and drive clicks through our own themed button
+  // below — same verified ID-token flow, but it matches the site theme. Load the
+  // GIS script once; only re-render the (invisible) button when login/register
+  // flips so its accessible label stays correct.
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return
     let cancelled = false
@@ -99,32 +110,35 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         ux_mode: 'popup',
-        callback: ({ credential }: { credential: string }) => void submitGoogle(credential),
+        callback: ({ credential }: { credential: string }) => void submitGoogleRef.current(credential),
       })
       window.google.accounts.id.renderButton(googleBoxRef.current, {
         type: 'standard',
-        theme: 'filled_black',
+        theme: 'outline',
         size: 'large',
         text: isLogin ? 'signin_with' : 'signup_with',
         shape: 'rectangular',
-        locale: lang,
-        width: googleBoxRef.current.clientWidth,
+        width: googleBoxRef.current.clientWidth || 360,
       })
     }
     const SCRIPT_ID = 'google-identity-services'
-    document.getElementById(SCRIPT_ID)?.remove()
-    const s = document.createElement('script')
-    s.id = SCRIPT_ID
-    s.src = `https://accounts.google.com/gsi/client?hl=${lang}`
-    s.async = true
-    s.addEventListener('load', render)
-    document.head.appendChild(s)
+    if (window.google) {
+      render()
+    } else {
+      let s = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null
+      if (!s) {
+        s = document.createElement('script')
+        s.id = SCRIPT_ID
+        s.src = 'https://accounts.google.com/gsi/client'
+        s.async = true
+        document.head.appendChild(s)
+      }
+      s.addEventListener('load', render)
+    }
     return () => {
       cancelled = true
-      s.removeEventListener('load', render)
-      s.remove()
     }
-  }, [isLogin, lang])
+  }, [isLogin])
 
   async function submitGoogle(credential: string) {
     setError(null)
@@ -202,7 +216,18 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         <form onSubmit={submit} className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
           {GOOGLE_CLIENT_ID && (
             <>
-              <div ref={googleBoxRef} className="flex h-10 w-full items-center justify-center overflow-hidden" />
+              <div className="relative h-12">
+                {/* Visible, theme-matched button (auto-flips light/dark via slate-*) */}
+                <div
+                  aria-hidden="true"
+                  className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-slate-700 bg-slate-900 font-semibold text-slate-100 transition hover:border-brand hover:bg-slate-800"
+                >
+                  <GoogleIcon className="h-5 w-5" />
+                  {isLogin ? t('ورود با گوگل', 'Sign in with Google') : t('ثبت‌نام با گوگل', 'Sign up with Google')}
+                </div>
+                {/* Real Google button, invisible, overlaid to capture the click */}
+                <div ref={googleBoxRef} className="absolute inset-0 flex items-center justify-center opacity-0" />
+              </div>
               <div className="flex items-center gap-3 text-xs text-slate-500" aria-hidden="true">
                 <span className="h-px flex-1 bg-slate-800" />
                 {t('یا', 'or')}
