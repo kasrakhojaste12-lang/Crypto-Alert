@@ -13,6 +13,7 @@ import alertsRouter from './api/alerts'
 import channelsRouter from './api/channels'
 import symbolsRouter, { startSymbolRefresh } from './api/symbols'
 import billingRouter from './api/billing'
+import adminRouter from './api/admin'
 import { startRatePolling } from './lib/rate'
 
 const app = express()
@@ -31,6 +32,7 @@ app.use('/api/alerts', rateLimit({ windowMs: 60 * 1000, max: 60 }), alertsRouter
 app.use('/api/channels', channelsRouter)
 app.use('/api/symbols', symbolsRouter)
 app.use('/api/billing', billingRouter)
+app.use('/api/admin', adminRouter)
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
 // Dev-only synthetic tick injection. Binance is unreachable from Iranian IPs,

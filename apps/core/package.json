@@ -11,7 +11,7 @@
     "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
     "db:generate": "prisma generate",
     "db:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
-    "test": "tsx src/engine/crossing.test.ts && tsx src/engine/binance.test.ts && tsx src/lib/reset.test.ts && tsx src/engine/candle.integration.test.ts && tsx src/lib/campaign.test.ts && tsx src/lib/google.test.ts && tsx src/api/symbols.test.ts"
+    "test": "tsx src/engine/crossing.test.ts && tsx src/engine/binance.test.ts && tsx src/lib/reset.test.ts && tsx src/engine/candle.integration.test.ts && tsx src/lib/campaign.test.ts && tsx src/lib/google.test.ts && tsx src/api/symbols.test.ts && tsx src/api/admin.test.ts"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"
