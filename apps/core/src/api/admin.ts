@@ -45,6 +45,7 @@ export async function stats(_req: AuthedRequest, res: Response) {
     premium,
     byStatus,
     byType,
+    byMarket,
     topSymbols,
     subsActive,
     revenueAll,
@@ -61,8 +62,11 @@ export async function stats(_req: AuthedRequest, res: Response) {
     prisma.user.count({ where: { subscriptions: { some: live } } }),
     prisma.alert.groupBy({ by: ['status'], _count: { _all: true } }),
     prisma.alert.groupBy({ by: ['type'], _count: { _all: true } }),
-    // ponytail: no byMarket breakdown — Alert.market isn't in the committed
-    // schema yet, so the generated client rejects it. Add it with the futures work.
+    // ponytail: .catch guards the split-brain window — if this deploys before the
+    // futures migration lands, the client rejects `market` as unknown; degrade the
+    // one breakdown to empty instead of 500-ing the whole panel. Drop the catch
+    // once Alert.market is in the committed schema everywhere.
+    prisma.alert.groupBy({ by: ['market'], _count: { _all: true } }).catch(() => [] as any[]),
     prisma.alert.groupBy({
       by: ['symbol'],
       _count: { _all: true },
@@ -87,6 +91,7 @@ export async function stats(_req: AuthedRequest, res: Response) {
     alerts: {
       byStatus: tally(byStatus, 'status'),
       byType: tally(byType, 'type'),
+      byMarket: tally(byMarket, 'market'),
       topSymbols: topSymbols.map((r: any) => ({ symbol: r.symbol, count: r._count._all })),
     },
     subscriptions: {

@@ -11,6 +11,7 @@ interface Stats {
   alerts: {
     byStatus: Record<string, number>
     byType: Record<string, number>
+    byMarket: Record<string, number>
     topSymbols: { symbol: string; count: number }[]
   }
   subscriptions: { active: number; revenueRial: number; revenue30dRial: number }
@@ -30,6 +31,10 @@ const TYPE_LABEL: Record<string, { fa: string; en: string }> = {
   price: { fa: 'قیمت', en: 'Price' },
   percent: { fa: 'درصد', en: 'Percent' },
   candle_close: { fa: 'بسته‌شدن کندل', en: 'Candle close' },
+}
+const MARKET_LABEL: Record<string, { fa: string; en: string }> = {
+  spot: { fa: 'اسپات', en: 'Spot' },
+  futures: { fa: 'فیوچرز', en: 'Futures' },
 }
 const NOTIF_LABEL: Record<string, { fa: string; en: string; cls: string }> = {
   sent: { fa: 'ارسال شده', en: 'Sent', cls: 'text-brand' },
@@ -103,6 +108,14 @@ function Admin() {
           <ChipRow
             items={Object.entries(data.alerts.byType).map(([k, v]) => ({
               label: TYPE_LABEL[k]?.[lang] ?? k,
+              cls: 'bg-slate-800 text-slate-300',
+              value: v,
+            }))}
+            lang={lang}
+          />
+          <ChipRow
+            items={Object.entries(data.alerts.byMarket).map(([k, v]) => ({
+              label: MARKET_LABEL[k]?.[lang] ?? k,
               cls: 'bg-slate-800 text-slate-300',
               value: v,
             }))}

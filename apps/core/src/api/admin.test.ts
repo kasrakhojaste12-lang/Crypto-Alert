@@ -82,6 +82,7 @@ users.findMany = async () => [
 ]
 
 let groupCall = 0
+// Call order in stats(): byStatus, byType, byMarket, topSymbols.
 alerts.groupBy = async () =>
   [
     [
@@ -89,6 +90,10 @@ alerts.groupBy = async () =>
       { status: 'triggered', _count: { _all: 2 } },
     ],
     [{ type: 'price', _count: { _all: 6 } }],
+    [
+      { market: 'spot', _count: { _all: 5 } },
+      { market: 'futures', _count: { _all: 2 } },
+    ],
     [{ symbol: 'BTCUSDT', _count: { _all: 3 } }],
   ][groupCall++]
 
@@ -111,14 +116,36 @@ assert.deepEqual(b.users, { total: 10, new24h: 1, new7d: 3, new30d: 7, telegramL
 assert.deepEqual(b.alerts.byStatus, { active: 5, triggered: 2 })
 assert.deepEqual(b.alerts.byType, { price: 6 })
 assert.deepEqual(b.alerts.topSymbols, [{ symbol: 'BTCUSDT', count: 3 }])
-// Alert.market is not in the committed schema — querying it would 500 in prod.
-assert.ok(!('byMarket' in b.alerts))
+assert.deepEqual(b.alerts.byMarket, { spot: 5, futures: 2 })
 assert.deepEqual(b.subscriptions, { active: 2, revenueRial: 500_000, revenue30dRial: 0 })
 assert.deepEqual(b.notifications, { last24h: { sent: 9, failed: 1 }, total: 12 })
 assert.equal(b.recentUsers.length, 1)
 assert.equal(b.recentUsers[0].email, 'a@b.com')
 // Never leak password hashes through the admin panel.
 assert.ok(!('passwordHash' in b.recentUsers[0]))
+
+// --- byMarket degrades, never 500s, when the client lacks Alert.market --------
+// Split-brain window: admin deployed before the futures migration lands, so the
+// generated client rejects `market`. The .catch must swallow it and the rest of
+// the panel must still render.
+let g2 = 0
+alerts.groupBy = async () => {
+  const call = g2++
+  if (call === 2) throw new Error('Unknown field `market` for select statement') // the market groupBy
+  return [
+    [{ status: 'active', _count: { _all: 5 } }],
+    [{ type: 'price', _count: { _all: 6 } }],
+    undefined, // market slot — thrown above
+    [{ symbol: 'BTCUSDT', _count: { _all: 3 } }],
+  ][call]
+}
+countCall = 0
+aggCall = 0
+const degraded = makeResponse()
+await stats({ userId: 'u1' } as any, degraded as any)
+assert.deepEqual(degraded.body.alerts.byMarket, {}, 'market breakdown degrades to empty when the column is unknown')
+assert.deepEqual(degraded.body.alerts.byStatus, { active: 5 }, 'other breakdowns are unaffected by the market failure')
+assert.equal(degraded.statusCode, 0, 'stats still responds 200, never 500, when market is unavailable')
 
 console.log('admin: all assertions passed ✓')
 process.exit(0)
