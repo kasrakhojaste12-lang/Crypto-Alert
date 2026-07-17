@@ -17,7 +17,7 @@ export interface NotifyJob {
   timeframe?: string | null // candle_close only
 }
 
-export const notifyQueue = new Queue<NotifyJob>(NOTIFY_QUEUE, { connection: newRedis() })
+export const notifyQueue = new Queue<NotifyJob, void, 'notify'>(NOTIFY_QUEUE, { connection: newRedis() })
 
 export async function enqueueNotification(job: NotifyJob) {
   await notifyQueue.add('notify', job, {

@@ -8,35 +8,38 @@ datasource db {
 }
 
 model User {
-  id             String         @id @default(cuid())
-  email          String         @unique
-  passwordHash   String
-  plan           String         @default("free") // free | paid
-  telegramChatId String?
-  createdAt      DateTime       @default(now())
-  alerts         Alert[]
-  subscriptions  Subscription[]
+  id               String         @id @default(cuid())
+  email            String         @unique
+  passwordHash     String
+  plan             String         @default("free") // free | paid
+  telegramChatId   String?
+  telegramLanguage String         @default("fa") // fa | en
+  createdAt        DateTime       @default(now())
+  alerts           Alert[]
+  subscriptions    Subscription[]
 }
 
 model Alert {
-  id            String         @id @default(cuid())
-  userId        String
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  symbol        String // e.g. BTCUSDT
-  type          String // price | percent | candle_close
-  direction     String // above | below
-  target        Decimal // price level, or percent threshold
-  percentBasis  String? // h24 | since_created  (percent only)
-  basePrice     Decimal? // price at creation    (since_created only)
-  timeframe     String? // 1m|5m|15m|1h|4h|1d    (candle_close only)
-  repeat        String         @default("one_time") // one_time | recurring
-  maxFires      Int? // recurring only: stop after this many fires (null = unlimited)
-  status        String         @default("active") // active | triggered | paused | disarmed
-  channels      Json // [{ type: telegram|discord|email, identifier }]
-  fireCount     Int            @default(0)
-  lastFiredAt   DateTime?
-  createdAt     DateTime       @default(now())
-  notifications Notification[]
+  id             String         @id @default(cuid())
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  symbol         String // e.g. BTCUSDT
+  market         String         @default("spot") // spot | futures
+  type           String // price | percent | candle_close
+  direction      String // above | below
+  target         Decimal // price level, or percent threshold
+  percentBasis   String? // h24 | since_created  (percent only)
+  basePrice      Decimal? // price at creation    (since_created only)
+  timeframe      String? // 1m|5m|15m|1h|4h|1d    (candle_close only)
+  repeat         String         @default("one_time") // one_time | recurring
+  maxFires       Int? // recurring only: stop after this many fires per reset cycle (null = unlimited)
+  status         String         @default("active") // active | triggered | paused | disarmed
+  channels       Json // [{ type: telegram|discord|email, identifier }]
+  fireCount      Int            @default(0)
+  cycleFireCount Int            @default(0)
+  lastFiredAt    DateTime?
+  createdAt      DateTime       @default(now())
+  notifications  Notification[]
 
   @@index([userId])
   @@index([symbol])

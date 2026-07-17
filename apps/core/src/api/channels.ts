@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import crypto from 'node:crypto'
+import { z } from 'zod'
 import { prisma } from '../lib/db'
 import { requireAuth, type AuthedRequest } from '../lib/auth'
 
@@ -20,9 +21,23 @@ router.post('/telegram/unlink', async (req: AuthedRequest, res) => {
   res.json({ ok: true })
 })
 
+router.post('/telegram/language', async (req: AuthedRequest, res) => {
+  const p = z.object({ language: z.enum(['fa', 'en']) }).strict().safeParse(req.body)
+  if (!p.success) return res.status(400).json({ error: 'invalid_input' })
+  const user = await prisma.user.update({
+    where: { id: req.userId },
+    data: { telegramLanguage: p.data.language },
+  })
+  res.json({ language: user.telegramLanguage })
+})
+
 router.get('/status', async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId } })
-  res.json({ telegram: !!user?.telegramChatId, email: user?.email })
+  res.json({
+    telegram: !!user?.telegramChatId,
+    telegramLanguage: user?.telegramLanguage ?? 'fa',
+    email: user?.email,
+  })
 })
 
 export default router

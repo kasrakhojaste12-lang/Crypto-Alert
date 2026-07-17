@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api, type ApiError } from '@/lib/api'
@@ -12,6 +12,7 @@ type Dir = 'above' | 'below'
 type Basis = 'h24' | 'since_created'
 type Repeat = 'one_time' | 'recurring'
 type TF = '1m' | '5m' | '15m' | '1h' | '4h' | '1d'
+type Market = 'spot' | 'futures'
 const TIMEFRAMES: TF[] = ['1m', '5m', '15m', '1h', '4h', '1d']
 
 function Seg<T extends string>({
@@ -50,12 +51,79 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
+function TradingViewChart({ symbol, market, label }: { symbol: string; market: Market; label: string }) {
+  const container = useRef<HTMLDivElement>(null)
+  const tvSymbol = `BINANCE:${symbol}${market === 'futures' ? '.P' : ''}`
+  const symbolUrl = `https://www.tradingview.com/symbols/${symbol}${market === 'futures' ? '.P' : ''}/?exchange=BINANCE`
+
+  useEffect(() => {
+    const node = container.current
+    if (!node) return
+    node.replaceChildren()
+
+    const widget = document.createElement('div')
+    widget.className = 'tradingview-widget-container__widget'
+    widget.style.height = '100%'
+    widget.style.width = '100%'
+
+    const light = document.documentElement.classList.contains('light')
+    const script = document.createElement('script')
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js'
+    script.type = 'text/javascript'
+    script.async = true
+    script.text = JSON.stringify({
+      autosize: true,
+      symbol: tvSymbol,
+      interval: '60',
+      timezone: 'Asia/Tehran',
+      theme: light ? 'light' : 'dark',
+      style: '1',
+      locale: 'en',
+      allow_symbol_change: false,
+      hide_side_toolbar: true,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      hide_volume: false,
+      save_image: false,
+      withdateranges: true,
+      backgroundColor: light ? '#f8fafc' : '#0f172a',
+      gridColor: light ? 'rgba(71, 85, 105, 0.12)' : 'rgba(148, 163, 184, 0.08)',
+    })
+    node.append(widget, script)
+
+    return () => node.replaceChildren()
+  }, [tvSymbol])
+
+  return (
+    <div className="space-y-1.5">
+      <div
+        role="region"
+        aria-label={label}
+        className="h-[520px] w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 sm:h-[620px] lg:h-[720px]"
+      >
+        <div ref={container} className="tradingview-widget-container h-full w-full" />
+      </div>
+      <a
+        href={symbolUrl}
+        target="_blank"
+        rel="noopener nofollow"
+        dir="ltr"
+        className="block text-end text-xs text-slate-500 hover:text-brand"
+      >
+        {symbol} chart by TradingView ↗
+      </a>
+    </div>
+  )
+}
+
 export function AlertForm() {
   const router = useRouter()
   const { user } = useUser()
   const t = useT()
 
   const [symbol, setSymbol] = useState('')
+  const [market, setMarket] = useState<Market>('spot')
+  const [showChart, setShowChart] = useState(false)
   const [type, setType] = useState<Type>('price')
   const [basis, setBasis] = useState<Basis>('h24')
   const [timeframe, setTimeframe] = useState<TF>('1h')
@@ -97,6 +165,7 @@ export function AlertForm() {
         method: 'POST',
         body: JSON.stringify({
           symbol,
+          market,
           type,
           direction,
           target: Number(target),
@@ -126,8 +195,41 @@ export function AlertForm() {
   return (
     <form onSubmit={submit} className="space-y-6">
       <Field label={t('نماد جفت‌ارز', 'Trading pair')}>
-        <SymbolPicker value={symbol} onChange={setSymbol} />
+        <SymbolPicker
+          value={symbol}
+          market={market}
+          onChange={(nextSymbol, nextMarket) => {
+            setSymbol(nextSymbol)
+            setMarket(nextMarket)
+          }}
+        />
       </Field>
+
+      {symbol && (
+        <section className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm text-slate-400">{t('نمودار تریدینگ‌ویو', 'TradingView chart')}</h2>
+            <button
+              type="button"
+              onClick={() => setShowChart((visible) => !visible)}
+              aria-expanded={showChart}
+              aria-controls="tradingview-chart"
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:text-slate-50"
+            >
+              {showChart ? t('پنهان کردن نمودار', 'Hide chart') : t('نمایش نمودار', 'Show chart')}
+            </button>
+          </div>
+          {showChart && (
+            <div id="tradingview-chart">
+              <TradingViewChart
+                symbol={symbol}
+                market={market}
+                label={t(`نمودار تریدینگ‌ویو ${symbol}`, `${symbol} TradingView chart`)}
+              />
+            </div>
+          )}
+        </section>
+      )}
 
       <Field label={t('نوع هشدار', 'Alert type')}>
         <Seg
@@ -202,7 +304,7 @@ export function AlertForm() {
         />
         {type !== 'percent' && symbol && (
           <div className="text-xs text-slate-500 flex gap-1">
-            {t('قیمت فعلی:', 'Current price:')} <LivePrice symbol={symbol} />
+            {t('قیمت فعلی:', 'Current price:')} <LivePrice symbol={symbol} market={market} />
           </div>
         )}
       </Field>

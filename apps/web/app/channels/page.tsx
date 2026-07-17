@@ -40,6 +40,19 @@ function Channels() {
     }
   }
 
+  async function setTelegramLanguage(language: 'fa' | 'en') {
+    setBusy(true)
+    try {
+      await api('/api/channels/telegram/language', {
+        method: 'POST',
+        body: JSON.stringify({ language }),
+      })
+      await mutate()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-bold">{t('کانال‌های اعلان', 'Notification channels')}</h1>
@@ -107,6 +120,34 @@ function Channels() {
             )}
           </>
         )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4">
+          <span className="text-sm text-slate-400">
+            {t('زبان پیام‌های هشدار', 'Alert message language')}
+          </span>
+          <div
+            role="group"
+            aria-label={t('زبان پیام‌های تلگرام', 'Telegram message language')}
+            className="inline-flex rounded-xl border border-slate-700 bg-slate-900 p-1"
+          >
+            {(['fa', 'en'] as const).map((language) => (
+              <button
+                key={language}
+                type="button"
+                aria-pressed={user?.telegramLanguage === language}
+                disabled={busy}
+                onClick={() => setTelegramLanguage(language)}
+                className={`rounded-lg px-3 py-1.5 text-sm transition disabled:opacity-50 ${
+                  user?.telegramLanguage === language
+                    ? 'bg-brand font-semibold text-slate-950'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                {language === 'fa' ? 'فارسی' : 'English'}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Discord */}

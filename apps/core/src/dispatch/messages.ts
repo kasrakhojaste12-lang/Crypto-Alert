@@ -1,8 +1,35 @@
 import type { NotifyJob } from '../queue/notify'
 
-// Persian notification body: symbol, condition met, current price, timestamp.
-export function buildMessage(j: NotifyJob): { title: string; body: string } {
-  const time = new Date().toLocaleString('fa-IR', { timeZone: 'Asia/Tehran' })
+export function buildMessage(j: NotifyJob, language: 'fa' | 'en' = 'fa'): { title: string; body: string } {
+  const time = new Date().toLocaleString(language === 'fa' ? 'fa-IR' : 'en-US', {
+    timeZone: 'Asia/Tehran',
+  })
+
+  if (language === 'en') {
+    const dir = j.direction === 'above' ? 'above' : 'below'
+    let condition: string
+    let priceLabel = 'Current price'
+    if (j.type === 'price') {
+      condition = `Price is ${dir} ${j.target}`
+    } else if (j.type === 'candle_close') {
+      condition = `${j.timeframe ?? ''} candle closed ${dir} ${j.target}`
+      priceLabel = 'Close price'
+    } else {
+      const basis = j.percentBasis === 'h24' ? 'over the last 24 hours' : 'since alert creation'
+      condition = `Price change ${basis} is ${dir} ${j.target}%`
+    }
+
+    return {
+      title: `Alert Key — ${j.symbol}`,
+      body:
+        `🔔 Alert Key\n\n` +
+        `Symbol: ${j.symbol}\n` +
+        `Condition: ${condition}\n` +
+        `${priceLabel}: ${j.price}\n` +
+        `Time: ${time}`,
+    }
+  }
+
   const dir = j.direction === 'above' ? 'بالاتر از' : 'پایین‌تر از'
 
   let condition: string

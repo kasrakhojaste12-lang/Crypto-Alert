@@ -21,6 +21,7 @@ export const toman = (rial: number, lang: Lang) => fmtNum(Math.round(rial / 10),
 
 export interface AlertShape {
   symbol: string
+  market: 'spot' | 'futures'
   type: 'price' | 'percent' | 'candle_close'
   direction: 'above' | 'below'
   target: number

@@ -13,7 +13,7 @@ Two hard network realities drive the design:
  Browser ──> web (Next.js)
                  │
                  ▼
-        core (outside Iran)  ──WS──>  Binance  !ticker@arr  (free, no key)
+        core (outside Iran)  ──WS──>  Binance Spot + Futures (free, no key)
         ├─ API + matching engine        Telegram / Discord / SMTP  (dispatch)
         ├─ BullMQ queue (Redis)
         └─ Postgres
@@ -84,7 +84,7 @@ curl -X POST localhost:4000/api/dev/tick -H "content-type: application/json" -d 
 
 ## How it works
 
-- **Feed** — one WebSocket to `wss://data-stream.binance.vision/ws/!ticker@arr` delivers every symbol's last price + 24h % change. `ws` auto-handles ping/pong; the client auto-reconnects with backoff.
+- **Feed** — independent Spot and Futures WebSockets subscribe only to watched symbols and deliver last price + 24h % change. Each reconnects with backoff and restores its own subscriptions.
 - **Crossing detection** (anti-spam) — fires only on a *crossing* (prev on one side, current on/over the target), never repeatedly while the price sits past the level. `recurring` alerts re-arm after the price returns to the opposite side. See `apps/core/src/engine/crossing.ts`.
 - **Queue** — a fired alert enqueues one BullMQ job per channel (deterministic `jobId` → idempotent), decoupling matching from delivery. Workers retry with backoff; exhausted jobs dead-letter.
 - **Free tier** — 3 active alerts; the 4th returns `402 upgrade_required` unless an active subscription exists.
@@ -94,9 +94,9 @@ curl -X POST localhost:4000/api/dev/tick -H "content-type: application/json" -d 
 
 ```
 POST /api/auth/register | /login | /logout      GET /api/auth/me
-GET|POST /api/alerts     PATCH|DELETE /api/alerts/:id
-POST /api/channels/telegram/link                 GET /api/channels/status
-GET  /api/symbols        GET /api/symbols/price/:symbol
+GET|POST /api/alerts     PATCH|DELETE /api/alerts/:id     POST /api/alerts/:id/reset
+POST /api/channels/telegram/link|language        GET /api/channels/status
+GET  /api/symbols        GET /api/symbols/price/:symbol?market=spot|futures
 POST /api/billing/checkout                        POST /api/billing/zibal/confirm  (bridge only, HMAC)
 ```
 

@@ -43,13 +43,13 @@ export function closedPast(close: number, target: number, dir: Direction): boole
 }
 
 // Whether an alert should stop permanently after this fire. one_time always
-// stops; recurring stops once it has fired maxFires times (null = unlimited).
-// `fireCount` is the post-increment count (i.e. how many times it has now fired).
+// stops; recurring stops once it has fired maxFires times in this cycle (null = unlimited).
+// `cycleFireCount` is the post-increment count for the current reset cycle.
 export function reachedFireCap(
   repeat: 'one_time' | 'recurring',
-  fireCount: number,
+  cycleFireCount: number,
   maxFires: number | null | undefined,
 ): boolean {
   if (repeat === 'one_time') return true
-  return maxFires != null && fireCount >= maxFires
+  return maxFires != null && cycleFireCount >= maxFires
 }

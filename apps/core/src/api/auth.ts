@@ -191,6 +191,7 @@ router.get('/me', requireAuth, async (req: AuthedRequest, res) => {
     email: user.email,
     plan: user.plan,
     telegramLinked: !!user.telegramChatId,
+    telegramLanguage: user.telegramLanguage,
     activeAlerts,
     freeLimit: FREE_ALERT_LIMIT,
     alertLimit: sub ? PAID_ALERT_LIMIT : FREE_ALERT_LIMIT,

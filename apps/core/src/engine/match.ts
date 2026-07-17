@@ -5,12 +5,15 @@ import { crosses, rearmed, closedPast, reachedFireCap, metricValue, type Directi
 
 type Snap = { price: number; changePct: number }
 
-type Channel = { type: 'telegram' | 'discord' | 'email'; identifier: string }
+export type Market = 'spot' | 'futures'
+
+type Channel = { type: 'telegram' | 'discord'; identifier: string }
 
 interface AlertState {
   id: string
   userId: string
   symbol: string
+  market: Market
   type: 'price' | 'percent' | 'candle_close'
   direction: Direction
   target: number
@@ -18,9 +21,10 @@ interface AlertState {
   basePrice: number | null
   timeframe: string | null // candle_close only (e.g. '4h')
   repeat: 'one_time' | 'recurring'
-  maxFires: number | null // recurring cap; null = unlimited
+  maxFires: number | null // recurring per-cycle cap; null = unlimited
   status: string // only 'active' | 'disarmed' alerts live in the map
   fireCount: number
+  cycleFireCount: number
   channels: Channel[]
 }
 
@@ -29,6 +33,7 @@ function toState(r: any): AlertState {
     id: r.id,
     userId: r.userId,
     symbol: r.symbol,
+    market: r.market ?? 'spot',
     type: r.type,
     direction: r.direction,
     target: Number(r.target),
@@ -39,12 +44,14 @@ function toState(r: any): AlertState {
     maxFires: r.maxFires ?? null,
     status: r.status,
     fireCount: r.fireCount,
+    cycleFireCount: r.cycleFireCount ?? r.fireCount ?? 0,
     channels: (r.channels as Channel[]) ?? [],
   }
 }
 
 const isCandle = (s: AlertState) => s.type === 'candle_close' && !!s.timeframe
-const candleKey = (symbol: string, timeframe: string) => `${symbol}|${timeframe}`
+const symbolKey = (market: Market, symbol: string) => `${market}|${symbol}`
+const candleKey = (market: Market, symbol: string, timeframe: string) => `${market}|${symbol}|${timeframe}`
 
 // In-memory matcher. ponytail: single-instance map mutated directly by the API
 // in the same process; add Redis pub/sub to sync when sharding across instances.
@@ -66,7 +73,16 @@ class Engine {
     this.fireIfMet(s.id)
   }
 
-  // Creation / re-activation convenience: if a just-armed PRICE alert's condition
+  upsertIfPresent(alert: any) {
+    if (!this.byId.has(alert.id)) return
+    this.upsert(alert)
+  }
+
+  reactivate(alert: any) {
+    this.put(toState(alert))
+  }
+
+  // Creation / ordinary activation convenience: if a just-armed PRICE alert's condition
   // is ALREADY true at the latest tick, fire once now — users expect "above X" to
   // notify when the price is already above X, not only on a future up-cross.
   // Called only from upsert() (the API create/patch path), never from
@@ -75,7 +91,7 @@ class Engine {
   fireIfMet(id: string) {
     const a = this.byId.get(id)
     if (!a || a.status !== 'active' || a.type !== 'price') return
-    const price = this.lastSnap.get(a.symbol)?.price
+    const price = this.lastSnap.get(symbolKey(a.market, a.symbol))?.price
     if (price != null && closedPast(price, a.target, a.direction)) this.fire(a, price)
   }
 
@@ -84,8 +100,8 @@ class Engine {
     if (prev) this.detach(prev) // upsert: drop the old copy (symbol/type may have changed)
     this.byId.set(s.id, s)
     const [map, key] = isCandle(s)
-      ? [this.candles, candleKey(s.symbol, s.timeframe!)]
-      : [this.bySymbol, s.symbol]
+      ? [this.candles, candleKey(s.market, s.symbol, s.timeframe!)]
+      : [this.bySymbol, symbolKey(s.market, s.symbol)]
     let m = map.get(key)
     if (!m) {
       m = new Map()
@@ -95,8 +111,8 @@ class Engine {
   }
 
   private detach(s: AlertState) {
-    if (isCandle(s)) this.candles.get(candleKey(s.symbol, s.timeframe!))?.delete(s.id)
-    else this.bySymbol.get(s.symbol)?.delete(s.id)
+    if (isCandle(s)) this.candles.get(candleKey(s.market, s.symbol, s.timeframe!))?.delete(s.id)
+    else this.bySymbol.get(symbolKey(s.market, s.symbol))?.delete(s.id)
     this.byId.delete(s.id)
   }
 
@@ -106,37 +122,44 @@ class Engine {
   }
 
   // Kline streams the candle feed should subscribe to (one per live symbol+tf).
-  neededStreams(): string[] {
+  neededStreams(market: Market = 'spot'): string[] {
     const out: string[] = []
     for (const [key, m] of this.candles) {
       if (!m.size) continue
-      const [symbol, tf] = key.split('|')
+      const [keyMarket, symbol, tf] = key.split('|')
+      if (keyMarket !== market) continue
       out.push(`${symbol.toLowerCase()}@kline_${tf}`)
     }
     return out
   }
 
-  lastPrice(symbol: string): number | null {
-    return this.lastSnap.get(symbol)?.price ?? null
+  lastPrice(symbol: string, market: Market = 'spot'): number | null {
+    return this.lastSnap.get(symbolKey(market, symbol))?.price ?? null
   }
 
   // Symbols that currently have at least one alert (used by the REST fallback
   // feed to poll only what's needed).
-  watchedSymbols(): string[] {
+  watchedSymbols(market: Market = 'spot'): string[] {
     const out: string[] = []
-    for (const [sym, m] of this.bySymbol) if (m.size) out.push(sym)
+    for (const [key, m] of this.bySymbol) {
+      const [keyMarket, symbol] = key.split('|')
+      if (keyMarket === market && m.size) out.push(symbol)
+    }
     return out
   }
 
   // Called for every symbol on every ticker tick. Looks up only this symbol's
   // alerts — never iterates the whole alert set.
-  onTick(symbol: string, price: number, changePct: number) {
-    const bucket = this.bySymbol.get(symbol)
-    const prev = this.lastSnap.get(symbol)
+  onTick(symbol: string, price: number, changePct: number, market: Market = 'spot') {
+    const key = symbolKey(market, symbol)
+    const bucket = this.bySymbol.get(key)
+    const prev = this.lastSnap.get(key)
     if (bucket && prev && bucket.size) {
       for (const a of bucket.values()) {
-        const prevVal = metricValue(a, prev.price, prev.changePct)
-        const currVal = metricValue(a, price, changePct)
+        if (a.type === 'candle_close') continue
+        const tickAlert = a as AlertState & { type: 'price' | 'percent' }
+        const prevVal = metricValue(tickAlert, prev.price, prev.changePct)
+        const currVal = metricValue(tickAlert, price, changePct)
         if (a.status === 'active') {
           if (crosses(prevVal, currVal, a.target, a.direction)) this.fire(a, price)
         } else if (a.status === 'disarmed') {
@@ -147,13 +170,13 @@ class Engine {
         }
       }
     }
-    this.lastSnap.set(symbol, { price, changePct })
+    this.lastSnap.set(key, { price, changePct })
   }
 
   // Called by the candle feed for each FULLY-CLOSED candle (never intrabar), so
   // there's no false-trigger risk from mid-candle price movement.
-  onCandleClose(symbol: string, interval: string, close: number) {
-    const bucket = this.candles.get(candleKey(symbol, interval))
+  onCandleClose(symbol: string, interval: string, close: number, market: Market = 'spot') {
+    const bucket = this.candles.get(candleKey(market, symbol, interval))
     if (!bucket || !bucket.size) return
     for (const a of bucket.values()) {
       if (a.status === 'active') {
@@ -171,9 +194,10 @@ class Engine {
   // DB write + enqueue are deferred to persist().
   private fire(a: AlertState, price: number) {
     a.fireCount += 1
+    a.cycleFireCount += 1
     const seq = a.fireCount
     // Recurring alerts re-arm (disarmed) unless they've hit their fire cap.
-    const next = reachedFireCap(a.repeat, a.fireCount, a.maxFires) ? 'triggered' : 'disarmed'
+    const next = reachedFireCap(a.repeat, a.cycleFireCount, a.maxFires) ? 'triggered' : 'disarmed'
     a.status = next
     if (next === 'triggered') this.remove(a.id)
     void this.persist(a, seq, price, next)
@@ -183,7 +207,7 @@ class Engine {
     try {
       await prisma.alert.update({
         where: { id: a.id },
-        data: { status: next, fireCount: seq, lastFiredAt: new Date() },
+        data: { status: next, fireCount: seq, cycleFireCount: a.cycleFireCount, lastFiredAt: new Date() },
       })
     } catch (e) {
       log.error({ err: String(e), alert: a.id }, 'failed to persist fired alert')

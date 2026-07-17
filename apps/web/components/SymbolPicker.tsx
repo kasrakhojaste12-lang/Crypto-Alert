@@ -10,9 +10,18 @@ interface Sym {
   symbol: string
   base: string
   quote: string
+  market: 'spot' | 'futures'
 }
 
-export function SymbolPicker({ value, onChange }: { value: string; onChange: (s: string) => void }) {
+export function SymbolPicker({
+  value,
+  market,
+  onChange,
+}: {
+  value: string
+  market: Sym['market']
+  onChange: (symbol: string, market: Sym['market']) => void
+}) {
   const { data: symbols } = useSWR<Sym[]>('/api/symbols', api)
   const t = useT()
   const [open, setOpen] = useState(false)
@@ -26,7 +35,7 @@ export function SymbolPicker({ value, onChange }: { value: string; onChange: (s:
     return list.slice(0, 50)
   }, [symbols, q])
 
-  const selected = symbols?.find((s) => s.symbol === value)
+  const selected = symbols?.find((s) => s.symbol === value && s.market === market)
 
   return (
     <div className="relative" ref={boxRef}>
@@ -39,7 +48,12 @@ export function SymbolPicker({ value, onChange }: { value: string; onChange: (s:
           <>
             <CoinIcon base={selected.base} />
             <span className="font-semibold">{selected.symbol}</span>
-            <LivePrice symbol={selected.symbol} />
+            {selected.market === 'futures' && (
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400">
+                {t('فیوچرز', 'Futures')}
+              </span>
+            )}
+            <LivePrice symbol={selected.symbol} market={selected.market} />
           </>
         ) : (
           <span className="text-slate-400">{t('انتخاب نماد…', 'Select a pair…')}</span>
@@ -59,10 +73,10 @@ export function SymbolPicker({ value, onChange }: { value: string; onChange: (s:
           <div className="max-h-64 overflow-y-auto">
             {filtered.map((s) => (
               <button
-                key={s.symbol}
+                key={`${s.market}:${s.symbol}`}
                 type="button"
                 onClick={() => {
-                  onChange(s.symbol)
+                  onChange(s.symbol, s.market)
                   setOpen(false)
                   setQ('')
                 }}
@@ -70,6 +84,11 @@ export function SymbolPicker({ value, onChange }: { value: string; onChange: (s:
               >
                 <CoinIcon base={s.base} size={22} />
                 <span>{s.symbol}</span>
+                {s.market === 'futures' && (
+                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400">
+                    {t('فیوچرز', 'Futures')}
+                  </span>
+                )}
                 <span className="ms-auto text-xs text-slate-500">{s.quote}</span>
               </button>
             ))}
@@ -81,10 +100,10 @@ export function SymbolPicker({ value, onChange }: { value: string; onChange: (s:
   )
 }
 
-export function LivePrice({ symbol }: { symbol: string }) {
+export function LivePrice({ symbol, market = 'spot' }: { symbol: string; market?: Sym['market'] }) {
   const { lang } = useLang()
   const { data } = useSWR<{ price: number }>(
-    symbol ? `/api/symbols/price/${symbol}` : null,
+    symbol ? `/api/symbols/price/${symbol}?market=${market}` : null,
     api,
     { refreshInterval: 5000, shouldRetryOnError: false },
   )

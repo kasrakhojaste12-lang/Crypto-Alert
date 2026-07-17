@@ -7,6 +7,7 @@ export interface User {
   email: string
   plan: 'free' | 'paid'
   telegramLinked: boolean
+  telegramLanguage: 'fa' | 'en'
   activeAlerts: number
   freeLimit: number
   alertLimit: number

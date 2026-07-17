@@ -1,7 +1,8 @@
 'use client'
+import { useState } from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
-import { api } from '@/lib/api'
+import { api, type ApiError } from '@/lib/api'
 import { useUser } from '@/lib/useUser'
 import { useLang, useT } from '@/lib/i18n'
 import { Shell } from '@/components/Shell'
@@ -25,10 +26,15 @@ export default function DashboardPage() {
 }
 
 function Dashboard() {
-  const { user } = useUser()
+  const { user, mutate: mutateUser } = useUser()
   const t = useT()
   const { lang } = useLang()
-  const { data: alerts, mutate } = useSWR<Alert[]>('/api/alerts', api)
+  const { data: alerts, mutate } = useSWR<Alert[]>('/api/alerts', api, {
+    refreshInterval: 5000,
+    onSuccess: () => void mutateUser(),
+  })
+  const [resetting, setResetting] = useState<string | null>(null)
+  const [resetError, setResetError] = useState<string | null>(null)
 
   async function toggle(a: Alert) {
     const status = a.status === 'paused' ? 'active' : 'paused'
@@ -37,7 +43,26 @@ function Dashboard() {
   }
   async function remove(id: string) {
     await api(`/api/alerts/${id}`, { method: 'DELETE' })
-    mutate()
+    await Promise.all([mutate(), mutateUser()])
+  }
+  async function reset(id: string) {
+    setResetting(id)
+    setResetError(null)
+    try {
+      await api(`/api/alerts/${id}/reset`, { method: 'POST' })
+      await Promise.all([mutate(), mutateUser()])
+    } catch (e) {
+      const err = e as ApiError
+      setResetError(
+        err.status === 402
+          ? err.message === 'limit_reached'
+            ? t('به سقف هشدارهای فعال رسیده‌اید.', 'You have reached your active-alert limit.')
+            : t('برای بازنشانی این هشدار باید اشتراک را ارتقا دهید.', 'Upgrade your plan to reset this alert.')
+          : t('بازنشانی هشدار انجام نشد.', 'Failed to reset the alert.'),
+      )
+    } finally {
+      setResetting(null)
+    }
   }
 
   const used = user?.activeAlerts ?? 0
@@ -87,6 +112,7 @@ function Dashboard() {
       </div>
 
       {/* Alerts list */}
+      {resetError && <p role="alert" className="text-sm text-rose-400">{resetError}</p>}
       {!alerts ? (
         <p className="text-slate-500 text-sm">{t('در حال بارگذاری…', 'Loading…')}</p>
       ) : alerts.length === 0 ? (
@@ -110,6 +136,11 @@ function Dashboard() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{a.symbol}</span>
+                    {a.market === 'futures' && (
+                      <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400">
+                        {t('فیوچرز', 'Futures')}
+                      </span>
+                    )}
                     <span className={`text-xs px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
                   </div>
                   <p className="text-sm text-slate-400 mt-0.5">{describeAlert(a, lang)}</p>
@@ -119,7 +150,7 @@ function Dashboard() {
                     <span>{a.channels.map((c) => CHANNEL_ICON[c.type] ?? c.type).join(' ')}</span>
                   </div>
                 </div>
-                <div className="flex flex-col gap-1 text-xs">
+                <div className={`flex gap-2 text-xs ${a.status === 'triggered' ? 'items-center' : 'flex-col'}`}>
                   {a.status !== 'triggered' && (
                     <>
                       <button onClick={() => toggle(a)} className="text-slate-400 hover:text-white">
@@ -129,6 +160,15 @@ function Dashboard() {
                         {t('ویرایش', 'Edit')}
                       </Link>
                     </>
+                  )}
+                  {a.status === 'triggered' && (
+                    <button
+                      onClick={() => reset(a.id)}
+                      disabled={resetting === a.id}
+                      className="text-brand hover:text-brand-dark disabled:opacity-50"
+                    >
+                      {resetting === a.id ? '…' : t('بازنشانی', 'Reset')}
+                    </button>
                   )}
                   <button onClick={() => remove(a.id)} className="text-slate-500 hover:text-rose-400">
                     {t('حذف', 'Delete')}

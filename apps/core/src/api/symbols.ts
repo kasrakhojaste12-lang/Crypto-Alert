@@ -1,12 +1,13 @@
 import { Router } from 'express'
 import { log } from '../lib/log'
-import { engine } from '../engine/match'
+import { engine, type Market } from '../engine/match'
 
 const router = Router()
-const REST = process.env.BINANCE_REST_URL || 'https://data-api.binance.vision'
+const SPOT_REST = process.env.BINANCE_REST_URL || 'https://data-api.binance.vision'
+const FUTURES_REST = process.env.BINANCE_FUTURES_REST_URL || 'https://fapi.binance.com'
 const REFRESH_MS = Number(process.env.SYMBOLS_REFRESH_MS || 3600_000)
 
-type Sym = { symbol: string; base: string; quote: string }
+type Sym = { symbol: string; base: string; quote: string; market: Market }
 let cache: Sym[] | null = null
 let known = new Set<string>()
 type PriceHit = { price: number; expires: number }
@@ -25,28 +26,55 @@ const isStablePair = (s: { baseAsset: string; quoteAsset: string }) =>
 
 // Fetch every TRADING pair (USDT-quoted first) and update the cache. Returns any
 // symbols that are new since the last refresh — i.e. pairs Binance just listed.
-export async function refreshSymbols(): Promise<{ total: number; added: string[] }> {
-  const [exRes, tkRes] = await Promise.all([
-    fetch(`${REST}/api/v3/exchangeInfo`),
-    fetch(`${REST}/api/v3/ticker/24hr?type=MINI`),
+export async function refreshSymbols(): Promise<{
+  total: number
+  added: string[]
+  symbols: Sym[]
+  degraded: boolean
+}> {
+  const signal = AbortSignal.timeout(8000)
+  const [spotEx, spotTk, futuresEx, futuresTk] = await Promise.all([
+    fetch(`${SPOT_REST}/api/v3/exchangeInfo`, { signal }),
+    fetch(`${SPOT_REST}/api/v3/ticker/24hr?type=MINI`, { signal }).catch(() => null),
+    fetch(`${FUTURES_REST}/fapi/v1/exchangeInfo`, { signal }).catch(() => null),
+    fetch(`${FUTURES_REST}/fapi/v1/ticker/24hr`, { signal }).catch(() => null),
   ])
-  if (!exRes.ok) throw new Error(`exchangeInfo ${exRes.status}`)
-  const data = await exRes.json()
+  if (!spotEx.ok) throw new Error(`spot exchangeInfo ${spotEx.status}`)
+  const spotData = await spotEx.json()
+  const futuresData = futuresEx?.ok
+    ? await futuresEx.json().catch(() => ({ symbols: [] }))
+    : { symbols: [] }
+  if (!futuresEx?.ok)
+    log.warn({ status: futuresEx?.status ?? 'unreachable' }, 'futures symbols unavailable; serving Spot only')
   // 24h quote volume per symbol, so the picker defaults to the most-traded pairs.
   // Best-effort: if the ticker call fails, fall back to the USDT-first alpha sort.
   const vol = new Map<string, number>()
-  if (tkRes.ok) {
-    for (const t of (await tkRes.json()) as any[]) vol.set(t.symbol, Number(t.quoteVolume) || 0)
+  if (spotTk?.ok) {
+    for (const t of (await spotTk.json().catch(() => [])) as any[])
+      vol.set(`spot|${t.symbol}`, Number(t.quoteVolume) || 0)
   }
-  const list: Sym[] = data.symbols
+  if (futuresTk?.ok) {
+    for (const t of (await futuresTk.json().catch(() => [])) as any[])
+      vol.set(`futures|${t.symbol}`, Number(t.quoteVolume) || 0)
+  }
+  const spot: Sym[] = spotData.symbols
     .filter((s: any) => s.status === 'TRADING' && !isStablePair(s))
-    .map((s: any) => ({ symbol: s.symbol, base: s.baseAsset, quote: s.quoteAsset }))
+    .map((s: any) => ({ symbol: s.symbol, base: s.baseAsset, quote: s.quoteAsset, market: 'spot' }))
+  const spotSymbols = new Set(spot.map((s) => s.symbol))
+  const list: Sym[] = spot
+    .concat(
+      futuresData.symbols
+        .filter((s: any) =>
+          s.status === 'TRADING' && s.contractType === 'PERPETUAL' && !spotSymbols.has(s.symbol) && !isStablePair(s),
+        )
+        .map((s: any) => ({ symbol: s.symbol, base: s.baseAsset, quote: s.quoteAsset, market: 'futures' })),
+    )
     .sort((a: Sym, b: Sym) => {
       // USDT pairs first: quoteVolume is only comparable within one quote asset
       // (an IDR-quoted pair's volume is a huge number just because IDR is tiny).
       const au = a.quote === 'USDT', bu = b.quote === 'USDT'
       if (au !== bu) return au ? -1 : 1
-      const va = vol.get(a.symbol) ?? 0, vb = vol.get(b.symbol) ?? 0
+      const va = vol.get(`${a.market}|${a.symbol}`) ?? 0, vb = vol.get(`${b.market}|${b.symbol}`) ?? 0
       if (va !== vb) return vb - va // then most 24h volume first
       return a.symbol.localeCompare(b.symbol)
     })
@@ -54,7 +82,7 @@ export async function refreshSymbols(): Promise<{ total: number; added: string[]
   const added = known.size ? [...current].filter((s) => !known.has(s)) : []
   cache = list
   known = current
-  return { total: list.length, added }
+  return { total: list.length, added, symbols: list, degraded: !futuresEx?.ok }
 }
 
 // Periodic refresher: newly-listed Binance pairs become selectable automatically.
@@ -65,9 +93,10 @@ export function startSymbolRefresh() {
   const run = async () => {
     let nextMs = REFRESH_MS
     try {
-      const { total, added } = await refreshSymbols()
+      const { total, added, degraded } = await refreshSymbols()
       if (added.length) log.info({ added }, `symbols refreshed: ${added.length} new pair(s) now supported`)
       else log.info({ total }, 'symbols refreshed')
+      if (degraded) nextMs = 15_000
     } catch (e) {
       log.warn({ err: String(e) }, 'symbol refresh failed; will retry')
       if (!cache) nextMs = 15_000 // not warmed yet — retry soon
@@ -90,13 +119,16 @@ router.get('/', async (_req, res) => {
   res.json(cache)
 })
 
-async function restPrice(symbol: string): Promise<number | null> {
-  const hit = priceCache.get(symbol)
+async function restPrice(symbol: string, market: Market): Promise<number | null> {
+  const key = `${market}|${symbol}`
+  const hit = priceCache.get(key)
   if (hit instanceof Promise) return hit
   if (hit && hit.expires > Date.now()) return hit.price
 
   const pending = (async () => {
-    const r = await fetch(`${REST}/api/v3/ticker/price?symbol=${encodeURIComponent(symbol)}`, {
+    const rest = market === 'spot' ? SPOT_REST : FUTURES_REST
+    const path = market === 'spot' ? '/api/v3/ticker/price' : '/fapi/v1/ticker/price'
+    const r = await fetch(`${rest}${path}?symbol=${encodeURIComponent(symbol)}`, {
       signal: AbortSignal.timeout(8000),
     })
     if (r.status >= 400 && r.status < 500) return null
@@ -104,29 +136,31 @@ async function restPrice(symbol: string): Promise<number | null> {
     const price = Number(((await r.json()) as { price?: unknown }).price)
     return Number.isFinite(price) && price > 0 ? price : null
   })()
-  priceCache.set(symbol, pending)
+  priceCache.set(key, pending)
   try {
     const price = await pending
-    if (price == null) priceCache.delete(symbol)
-    else priceCache.set(symbol, { price, expires: Date.now() + 5000 })
+    if (price == null) priceCache.delete(key)
+    else priceCache.set(key, { price, expires: Date.now() + 5000 })
     return price
   } catch (e) {
-    priceCache.delete(symbol)
+    priceCache.delete(key)
     throw e
   }
 }
 
-export async function currentPrice(symbol: string): Promise<number | null> {
-  return engine.lastPrice(symbol) ?? restPrice(symbol)
+export async function currentPrice(symbol: string, market: Market = 'spot'): Promise<number | null> {
+  return engine.lastPrice(symbol, market) ?? restPrice(symbol, market)
 }
 
 // Prefer the engine snapshot; selectable symbols without alerts fall back to REST.
 router.get('/price/:symbol', async (req, res) => {
   const symbol = req.params.symbol.toUpperCase()
+  const market = req.query.market ?? 'spot'
+  if (market !== 'spot' && market !== 'futures') return res.status(400).json({ error: 'invalid_market' })
   try {
-    const price = await currentPrice(symbol)
+    const price = await currentPrice(symbol, market)
     if (price == null) return res.status(404).json({ error: 'no_price' })
-    res.json({ symbol, price })
+    res.json({ symbol, market, price })
   } catch {
     res.status(502).json({ error: 'binance_unreachable' })
   }

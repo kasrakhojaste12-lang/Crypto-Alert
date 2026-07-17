@@ -1,5 +1,6 @@
 import './lib/env'
 import { Worker } from 'bullmq'
+import { Prisma } from '@prisma/client'
 import { newRedis } from './lib/redis'
 import { prisma } from './lib/db'
 import { log } from './lib/log'
@@ -25,7 +26,17 @@ const worker = new Worker<NotifyJob>(
       return
     }
 
-    const { body } = buildMessage(j)
+    const alert = await prisma.alert.findUnique({
+      where: { id: j.alertId },
+      select: { user: { select: { telegramLanguage: true } } },
+    })
+    if (!alert) {
+      log.info({ alert: j.alertId, job: job.id }, 'alert deleted; skipping notification')
+      return
+    }
+
+    const language = j.channel === 'telegram' ? alert.user.telegramLanguage : 'fa'
+    const { body } = buildMessage(j, language === 'en' ? 'en' : 'fa')
     try {
       if (j.channel === 'telegram') await sendTelegram(j.identifier, body)
       else if (j.channel === 'discord') await sendDiscord(j.identifier, body)
@@ -37,6 +48,10 @@ const worker = new Worker<NotifyJob>(
       })
       log.info({ alert: j.alertId, channel: j.channel }, 'notification sent')
     } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        log.info({ alert: j.alertId, job: job.id }, 'alert deleted during delivery; skipping retry')
+        return
+      }
       const msg = String(e instanceof Error ? e.message : e)
       await prisma.notification.upsert({
         where,

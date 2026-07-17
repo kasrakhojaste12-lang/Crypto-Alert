@@ -40,9 +40,10 @@ app.get('/health', (_req, res) => res.json({ ok: true }))
 // Gated by DEV_TICK=1; returns 404 otherwise. Never enable in production.
 app.post('/api/dev/tick', (req, res) => {
   if (process.env.DEV_TICK !== '1') return res.status(404).end()
-  const { symbol, price, changePct = 0 } = req.body ?? {}
+  const { symbol, price, changePct = 0, market = 'spot' } = req.body ?? {}
   if (!symbol || price == null) return res.status(400).json({ error: 'symbol_and_price_required' })
-  engine.onTick(String(symbol).toUpperCase(), Number(price), Number(changePct))
+  if (market !== 'spot' && market !== 'futures') return res.status(400).json({ error: 'invalid_market' })
+  engine.onTick(String(symbol).toUpperCase(), Number(price), Number(changePct), market)
   res.json({ ok: true })
 })
 
@@ -50,10 +51,11 @@ app.post('/api/dev/tick', (req, res) => {
 // candle_close alerts without the live kline feed. Gated by DEV_TICK=1.
 app.post('/api/dev/candle', (req, res) => {
   if (process.env.DEV_TICK !== '1') return res.status(404).end()
-  const { symbol, interval, close } = req.body ?? {}
+  const { symbol, interval, close, market = 'spot' } = req.body ?? {}
   if (!symbol || !interval || close == null)
     return res.status(400).json({ error: 'symbol_interval_close_required' })
-  engine.onCandleClose(String(symbol).toUpperCase(), String(interval), Number(close))
+  if (market !== 'spot' && market !== 'futures') return res.status(400).json({ error: 'invalid_market' })
+  engine.onCandleClose(String(symbol).toUpperCase(), String(interval), Number(close), market)
   res.json({ ok: true })
 })
 
