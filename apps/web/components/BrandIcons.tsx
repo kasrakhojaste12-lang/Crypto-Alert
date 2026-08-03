@@ -34,3 +34,19 @@ export function DiscordIcon({ className = 'h-6 w-6' }: { className?: string }) {
     </svg>
   )
 }
+
+// Email has no brand mark — a neutral envelope drawn in the app's own accent.
+export function EmailIcon({ className = 'h-6 w-6' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none">
+      <rect x="2" y="4.5" width="20" height="15" rx="2.5" fill="#0ea5e9" />
+      <path
+        d="M3.5 7.5l7.53 5.27a1.7 1.7 0 0 0 1.94 0L20.5 7.5"
+        stroke="#fff"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}

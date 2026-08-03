@@ -1,13 +1,13 @@
 import { prisma } from '../lib/db'
 import { log } from '../lib/log'
-import { enqueueNotification } from '../queue/notify'
+import { enqueueNotification, type NotifyChannel } from '../queue/notify'
 import { crosses, rearmed, closedPast, reachedFireCap, metricValue, type Direction } from './crossing'
 
 type Snap = { price: number; changePct: number }
 
 export type Market = 'spot' | 'futures'
 
-type Channel = { type: 'telegram' | 'discord'; identifier: string }
+type Channel = { type: NotifyChannel; identifier: string }
 
 interface AlertState {
   id: string
