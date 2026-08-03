@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Response } from 'express'
 import crypto from 'node:crypto'
 import { z } from 'zod'
 import { prisma } from '../lib/db'
@@ -21,7 +21,9 @@ router.post('/telegram/unlink', async (req: AuthedRequest, res) => {
   res.json({ ok: true })
 })
 
-router.post('/telegram/language', async (req: AuthedRequest, res) => {
+// Notification language for EVERY channel (telegram, email, discord). The
+// column is still named telegramLanguage so this needs no migration.
+async function setLanguage(req: AuthedRequest, res: Response) {
   const p = z.object({ language: z.enum(['fa', 'en']) }).strict().safeParse(req.body)
   if (!p.success) return res.status(400).json({ error: 'invalid_input' })
   const user = await prisma.user.update({
@@ -29,13 +31,17 @@ router.post('/telegram/language', async (req: AuthedRequest, res) => {
     data: { telegramLanguage: p.data.language },
   })
   res.json({ language: user.telegramLanguage })
-})
+}
+
+router.post('/language', setLanguage)
+router.post('/telegram/language', setLanguage) // deprecated alias, kept for older clients
 
 router.get('/status', async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId } })
   res.json({
     telegram: !!user?.telegramChatId,
-    telegramLanguage: user?.telegramLanguage ?? 'fa',
+    telegramLanguage: user?.telegramLanguage ?? 'fa', // deprecated alias of notificationLanguage
+    notificationLanguage: user?.telegramLanguage ?? 'fa',
     email: user?.email,
   })
 })

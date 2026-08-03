@@ -8,8 +8,8 @@ import { NOTIFY_QUEUE, type NotifyJob } from './queue/notify'
 import { buildMessage } from './dispatch/messages'
 import { sendTelegram } from './dispatch/telegram'
 import { sendDiscord } from './dispatch/discord'
+import { sendEmail } from './dispatch/email'
 import { startBot } from './dispatch/bot'
-// import { sendEmail } from './dispatch/email' // email channel temporarily disabled; re-add later
 
 const worker = new Worker<NotifyJob>(
   NOTIFY_QUEUE,
@@ -35,11 +35,14 @@ const worker = new Worker<NotifyJob>(
       return
     }
 
-    const language = j.channel === 'telegram' ? alert.user.telegramLanguage : 'fa'
-    const { body } = buildMessage(j, language === 'en' ? 'en' : 'fa')
+    // The language preference applies to EVERY channel, not just Telegram. The
+    // column keeps its legacy `telegramLanguage` name to avoid a migration.
+    const language = alert.user.telegramLanguage === 'en' ? 'en' : 'fa'
+    const { title, body } = buildMessage(j, language)
     try {
       if (j.channel === 'telegram') await sendTelegram(j.identifier, body)
       else if (j.channel === 'discord') await sendDiscord(j.identifier, body)
+      else if (j.channel === 'email') await sendEmail(j.identifier, title, body)
 
       await prisma.notification.upsert({
         where,
