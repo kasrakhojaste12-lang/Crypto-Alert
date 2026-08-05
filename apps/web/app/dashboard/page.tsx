@@ -9,15 +9,19 @@ import { Shell } from '@/components/Shell'
 import { CoinIcon } from '@/components/CoinIcon'
 import { TelegramBanner } from '@/components/TelegramBanner'
 import { TelegramIcon, DiscordIcon, EmailIcon } from '@/components/BrandIcons'
-import { ArrowUpIcon, ArrowDownIcon } from '@/components/Icons'
+import { ArrowUpIcon, ArrowDownIcon, BellIcon } from '@/components/Icons'
 import { describeAlert, fmtNum, baseOf, statusInfo, repeatLabel, type AlertShape } from '@/lib/format'
 
 interface Alert extends AlertShape {
   id: string
+  note?: string | null
   channels: { type: string; identifier: string }[]
 }
 
-type DirectionFilter = 'all' | 'above' | 'below'
+// 'above' and 'below' match on direction, 'triggered' on status. They are one
+// control because the user thinks of them as one question: which alerts do I
+// want to look at right now?
+type AlertFilter = 'all' | 'above' | 'below' | 'triggered'
 
 const CHANNEL_ICON: Record<string, ComponentType<{ className?: string }>> = {
   telegram: TelegramIcon,
@@ -43,7 +47,7 @@ function Dashboard() {
   })
   const [resetting, setResetting] = useState<string | null>(null)
   const [resetError, setResetError] = useState<string | null>(null)
-  const [direction, setDirection] = useState<DirectionFilter>('all')
+  const [filter, setFilter] = useState<AlertFilter>('all')
 
   async function toggle(a: Alert) {
     const status = a.status === 'paused' ? 'active' : 'paused'
@@ -79,14 +83,15 @@ function Dashboard() {
   const paid = user?.plan === 'paid'
 
   const all = alerts ?? []
-  const aboveCount = all.filter((a) => a.direction === 'above').length
-  const belowCount = all.filter((a) => a.direction === 'below').length
-  const visible = direction === 'all' ? all : all.filter((a) => a.direction === direction)
+  const matches = (a: Alert, f: AlertFilter) =>
+    f === 'all' ? true : f === 'triggered' ? a.status === 'triggered' : a.direction === f
+  const visible = all.filter((a) => matches(a, filter))
 
-  const FILTERS: { value: DirectionFilter; label: string; count: number; icon?: ComponentType<{ className?: string }> }[] = [
-    { value: 'all', label: t('همه', 'All'), count: all.length },
-    { value: 'above', label: t('بالاتر از', 'Above'), count: aboveCount, icon: ArrowUpIcon },
-    { value: 'below', label: t('پایین‌تر از', 'Below'), count: belowCount, icon: ArrowDownIcon },
+  const FILTERS: { value: AlertFilter; label: string; icon?: ComponentType<{ className?: string }> }[] = [
+    { value: 'all', label: t('همه', 'All') },
+    { value: 'above', label: t('بالاتر از', 'Above'), icon: ArrowUpIcon },
+    { value: 'below', label: t('پایین‌تر از', 'Below'), icon: ArrowDownIcon },
+    { value: 'triggered', label: t('اجرا شده', 'Triggered'), icon: BellIcon },
   ]
 
   return (
@@ -131,19 +136,20 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Direction filter — only useful once there is something to filter */}
+      {/* Filter card — only useful once there is something to filter */}
       {all.length > 0 && (
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-2">
-          <p className="text-sm text-slate-400">{t('فیلتر بر اساس جهت', 'Filter by direction')}</p>
-          <div role="group" aria-label={t('فیلتر بر اساس جهت', 'Filter by direction')} className="flex flex-wrap gap-2">
+          <p className="text-sm text-slate-400">{t('فیلتر هشدارها', 'Filter alerts')}</p>
+          <div role="group" aria-label={t('فیلتر هشدارها', 'Filter alerts')} className="flex flex-wrap gap-2">
             {FILTERS.map((f) => {
               const Icon = f.icon
-              const on = direction === f.value
+              const on = filter === f.value
+              const count = all.filter((a) => matches(a, f.value)).length
               return (
                 <button
                   key={f.value}
                   type="button"
-                  onClick={() => setDirection(f.value)}
+                  onClick={() => setFilter(f.value)}
                   aria-pressed={on}
                   className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm transition ${
                     on
@@ -153,7 +159,7 @@ function Dashboard() {
                 >
                   {Icon && <Icon className="h-3.5 w-3.5" />}
                   <span>{f.label}</span>
-                  <span className="rounded-full bg-slate-800 px-1.5 text-xs text-slate-400">{fmtNum(f.count, lang)}</span>
+                  <span className="rounded-full bg-slate-800 px-1.5 text-xs text-slate-400">{fmtNum(count, lang)}</span>
                 </button>
               )
             })}
@@ -175,9 +181,9 @@ function Dashboard() {
       ) : visible.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-800 p-10 text-center">
           <p className="text-slate-400">
-            {t('هشداری با این جهت وجود ندارد.', 'No alerts with this direction.')}
+            {t('هشداری با این فیلتر وجود ندارد.', 'No alerts match this filter.')}
           </p>
-          <button onClick={() => setDirection('all')} className="text-brand text-sm">
+          <button onClick={() => setFilter('all')} className="text-brand text-sm">
             {t('نمایش همه', 'Show all')}
           </button>
         </div>
@@ -207,6 +213,12 @@ function Dashboard() {
                     <span className={`text-xs px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
                   </div>
                   <p className="text-sm text-slate-400 mt-0.5">{describeAlert(a, lang)}</p>
+                  {a.note && (
+                    <p className="mt-1 flex items-start gap-1.5 text-xs text-slate-400">
+                      <span aria-hidden="true">📝</span>
+                      <span className="whitespace-pre-wrap break-words">{a.note}</span>
+                    </p>
+                  )}
                   <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
                     <span>{repeatLabel(a.repeat, lang, a.maxFires)}</span>
                     <span>·</span>
