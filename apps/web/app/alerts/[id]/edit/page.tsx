@@ -28,13 +28,17 @@ function EditAlert({ id }: { id: string }) {
   const { lang } = useLang()
   const { data: alerts } = useSWR<Alert[]>('/api/alerts', api)
   const alert = alerts?.find((a) => a.id === id)
-  const [target, setTarget] = useState('')
+  // null until the user types: the field shows the alert's current target, but
+  // the alert only arrives after the request resolves, so the value cannot be
+  // seeded in useState.
+  const [edited, setEdited] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   if (!alerts) return <p className="text-slate-500 text-sm">{t('در حال بارگذاری…', 'Loading…')}</p>
   if (!alert) return <p className="text-slate-400">{t('هشدار یافت نشد.', 'Alert not found.')}</p>
 
   const base = baseOf(alert.symbol)
+  const target = edited ?? String(alert.target)
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
@@ -76,8 +80,8 @@ function EditAlert({ id }: { id: string }) {
               step="any"
               required
               value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder={String(alert.target)}
+              onChange={(e) => setEdited(e.target.value)}
+              onFocus={(e) => e.currentTarget.select()}
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
             />
           </div>
