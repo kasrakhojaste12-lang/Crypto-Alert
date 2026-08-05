@@ -27,6 +27,24 @@ export function ArrowDownIcon({ className = 'h-4 w-4' }: { className?: string })
   )
 }
 
+export function BellIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...STROKE}>
+      <path d="M18 9a6 6 0 1 0-12 0c0 4.5-1.5 5.8-2 6.3h16c-.5-.5-2-1.8-2-6.3Z" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  )
+}
+
+export function CloseIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...STROKE}>
+      <path d="M6 6l12 12" />
+      <path d="M18 6L6 18" />
+    </svg>
+  )
+}
+
 export function EyeIcon({ className = 'h-5 w-5' }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...STROKE}>
