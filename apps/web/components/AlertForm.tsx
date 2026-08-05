@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api, type ApiError } from '@/lib/api'
-import { useUser } from '@/lib/useUser'
-import { useT } from '@/lib/i18n'
+import { useUser, type ChannelType, type PlanId } from '@/lib/useUser'
+import { useLang, useT } from '@/lib/i18n'
+import { planName } from '@/lib/plans'
 import { SymbolPicker, LivePrice } from './SymbolPicker'
 
 type Type = 'price' | 'percent' | 'candle_close'
@@ -17,27 +18,48 @@ const TIMEFRAMES: TF[] = ['1m', '5m', '15m', '1h', '4h', '1d']
 // Mirrors NOTE_MAX_LENGTH in apps/core/src/api/alerts.ts
 const NOTE_MAX = 500
 
+// What the plan gate refused, so the prompt can name it.
+type Blocked = { feature: string; detail?: string }
+
+function LockIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={className}>
+      <rect x="4" y="10" width="16" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </svg>
+  )
+}
+
 function Seg<T extends string>({
   value,
   onChange,
   options,
+  onLocked,
 }: {
   value: T
   onChange: (v: T) => void
-  options: { value: T; label: string }[]
+  options: { value: T; label: string; locked?: boolean }[]
+  onLocked?: (v: T) => void
 }) {
   return (
-    <div className="inline-flex rounded-xl border border-slate-700 bg-slate-900 p-1">
+    <div className="inline-flex flex-wrap rounded-xl border border-slate-700 bg-slate-900 p-1">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
-          onClick={() => onChange(o.value)}
-          className={`px-4 py-1.5 rounded-lg text-sm transition ${
-            value === o.value ? 'bg-brand text-slate-950 font-semibold' : 'text-slate-300 hover:text-white'
+          // Locked options stay clickable on purpose: the click is what explains
+          // which plan unlocks them.
+          onClick={() => (o.locked ? onLocked?.(o.value) : onChange(o.value))}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm transition ${
+            value === o.value && !o.locked
+              ? 'bg-brand text-slate-950 font-semibold'
+              : o.locked
+                ? 'text-slate-500 hover:text-slate-300'
+                : 'text-slate-300 hover:text-white'
           }`}
         >
           {o.label}
+          {o.locked && <LockIcon />}
         </button>
       ))}
     </div>
@@ -122,6 +144,7 @@ export function AlertForm() {
   const router = useRouter()
   const { user } = useUser()
   const t = useT()
+  const { lang } = useLang()
 
   const [symbol, setSymbol] = useState('')
   const [market, setMarket] = useState<Market>('spot')
@@ -132,7 +155,7 @@ export function AlertForm() {
   const [direction, setDirection] = useState<Dir>('above')
   const [target, setTarget] = useState('')
   const [repeat, setRepeat] = useState<Repeat>('one_time')
-  const [maxFires, setMaxFires] = useState('') // recurring only; blank = unlimited
+  const [maxFires, setMaxFires] = useState('') // recurring only; blank = plan cap
   const [note, setNote] = useState('')
 
   const [chTelegram, setChTelegram] = useState(true)
@@ -141,13 +164,41 @@ export function AlertForm() {
   const [discordUrl, setDiscordUrl] = useState('')
 
   const [error, setError] = useState<string | null>(null)
-  const [upgrade, setUpgrade] = useState(false)
+  const [blocked, setBlocked] = useState<Blocked | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // Entitlements arrive with the user. While they're loading nothing is locked,
+  // so the form never flashes padlocks at a paying customer.
+  const ent = user?.entitlements
+  const tier: PlanId = user?.tier ?? 'free'
+  const nextPlan = user?.nextPlan ?? 'pro'
+  const fireCap = ent?.maxFiresPerAlert ?? 1
+  const selectedChannels = [chTelegram, chEmail, chDiscord].filter(Boolean).length
+
+  const typeLocked = (v: Type) => !!ent && !ent.alertTypes.includes(v)
+  const tfLocked = (v: TF) => !!ent && !ent.timeframes.includes(v)
+  const channelLocked = (v: ChannelType) => !!ent && !ent.channels.includes(v)
+
+  function block(feature: string, detail?: string) {
+    setError(null)
+    setBlocked({ feature, detail })
+  }
+
+  // Turning a channel on can fail two ways: the plan doesn't have the channel at
+  // all, or it already has as many channels on this alert as it may use.
+  function toggleChannel(channel: ChannelType, next: boolean, set: (v: boolean) => void) {
+    if (!next) return set(false)
+    if (channelLocked(channel)) return block('channel', channel)
+    if (ent && selectedChannels >= ent.channelsPerAlert)
+      return block('channelsPerAlert', String(ent.channelsPerAlert))
+    setBlocked(null)
+    set(true)
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    setUpgrade(false)
+    setBlocked(null)
     if (!symbol) return setError(t('یک نماد انتخاب کنید', 'Select a pair'))
     if (!target || Number.isNaN(Number(target))) return setError(t('مقدار هدف معتبر نیست', 'Target value is invalid'))
 
@@ -156,6 +207,7 @@ export function AlertForm() {
       maxFiresNum = Number(maxFires)
       if (!Number.isInteger(maxFiresNum) || maxFiresNum < 1)
         return setError(t('حداکثر دفعات تکرار باید عددی صحیح و حداقل ۱ باشد', 'Max repeats must be a whole number of at least 1'))
+      if (maxFiresNum > fireCap) return block('maxFires', String(fireCap))
     }
 
     const channels: { type: string; identifier?: string }[] = []
@@ -186,9 +238,17 @@ export function AlertForm() {
       router.push('/dashboard')
     } catch (e) {
       const err = e as ApiError
-      if (err.status === 402 && err.message === 'limit_reached')
-        setError(t('به سقف ۳۰ هشدار رسیده‌اید. برای ساخت هشدار جدید، یکی را حذف کنید.', "You've reached the 30-alert limit. Delete one to create another."))
-      else if (err.status === 402) setUpgrade(true)
+      const body = (err as unknown as { body?: Record<string, unknown> }).body ?? {}
+      if (err.status === 402 && err.message === 'plan_upgrade_required')
+        setBlocked({ feature: String(body.feature ?? 'plan'), detail: body.detail as string | undefined })
+      else if (err.status === 402 && err.message === 'limit_reached')
+        setError(
+          t(
+            `به سقف ${body.limit ?? ent?.alertLimit} هشدار پلن خود رسیده‌اید. برای ساخت هشدار جدید، یکی را حذف کنید.`,
+            `You've reached your plan's ${body.limit ?? ent?.alertLimit}-alert limit. Delete one to create another.`,
+          ),
+        )
+      else if (err.status === 402) setBlocked({ feature: 'alertLimit', detail: String(body.limit ?? '') })
       else if (err.message === 'telegram_not_linked') setError(t('ابتدا تلگرام خود را متصل کنید.', 'Link your Telegram first.'))
       else if (err.message === 'invalid_discord_webhook') setError(t('آدرس وبهوک دیسکورد معتبر نیست.', 'The Discord webhook URL is invalid.'))
       else if (err.message === 'no_price_yet')
@@ -242,10 +302,11 @@ export function AlertForm() {
         <Seg
           value={type}
           onChange={setType}
+          onLocked={(v) => block(v)}
           options={[
             { value: 'price', label: t('قیمت', 'Price') },
-            { value: 'percent', label: t('درصد تغییر', 'Percent change') },
-            { value: 'candle_close', label: t('بسته‌شدن کندل', 'Candle close') },
+            { value: 'percent', label: t('درصد تغییر', 'Percent change'), locked: typeLocked('percent') },
+            { value: 'candle_close', label: t('بسته‌شدن کندل', 'Candle close'), locked: typeLocked('candle_close') },
           ]}
         />
       </Field>
@@ -253,19 +314,27 @@ export function AlertForm() {
       {type === 'candle_close' && (
         <Field label={t('تایم‌فریم کندل', 'Candle timeframe')}>
           <div className="inline-flex flex-wrap gap-1 rounded-xl border border-slate-700 bg-slate-900 p-1">
-            {TIMEFRAMES.map((tf) => (
-              <button
-                key={tf}
-                type="button"
-                onClick={() => setTimeframe(tf)}
-                dir="ltr"
-                className={`px-3 py-1.5 rounded-lg text-sm transition ${
-                  timeframe === tf ? 'bg-brand text-slate-950 font-semibold' : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                {tf}
-              </button>
-            ))}
+            {TIMEFRAMES.map((tf) => {
+              const locked = tfLocked(tf)
+              return (
+                <button
+                  key={tf}
+                  type="button"
+                  onClick={() => (locked ? block('timeframe', tf) : setTimeframe(tf))}
+                  dir="ltr"
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm transition ${
+                    timeframe === tf && !locked
+                      ? 'bg-brand text-slate-950 font-semibold'
+                      : locked
+                        ? 'text-slate-500 hover:text-slate-300'
+                        : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  {tf}
+                  {locked && <LockIcon className="h-3 w-3" />}
+                </button>
+              )
+            })}
           </div>
           <p className="text-xs text-slate-500">
             {t(
@@ -320,28 +389,34 @@ export function AlertForm() {
         <Seg
           value={repeat}
           onChange={setRepeat}
+          onLocked={() => block('recurring')}
           options={[
             { value: 'one_time', label: t('یک‌بار', 'One-time') },
-            { value: 'recurring', label: t('تکرارشونده', 'Recurring') },
+            {
+              value: 'recurring',
+              label: t('تکرارشونده', 'Recurring'),
+              locked: !!ent && !ent.recurring,
+            },
           ]}
         />
       </Field>
 
       {repeat === 'recurring' && (
-        <Field label={t('حداکثر دفعات تکرار (اختیاری)', 'Max repeats (optional)')}>
+        <Field label={t(`حداکثر دفعات تکرار (تا ${fireCap})`, `Max repeats (up to ${fireCap})`)}>
           <input
             type="number"
             min="1"
+            max={fireCap}
             step="1"
             value={maxFires}
             onChange={(e) => setMaxFires(e.target.value)}
-            placeholder={t('بدون محدودیت', 'Unlimited')}
+            placeholder={String(fireCap)}
             className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
           />
           <p className="text-xs text-slate-500">
             {t(
-              'پس از این تعداد اعلان، هشدار متوقف می‌شود تا شما را اسپم نکند. خالی بگذارید تا نامحدود باشد.',
-              'The alert stops after this many notifications so it never spams you. Leave blank for unlimited.',
+              `پس از این تعداد اعلان، هشدار متوقف می‌شود تا شما را اسپم نکند. خالی بگذارید تا سقف پلن شما (${fireCap}) اعمال شود.`,
+              `The alert stops after this many notifications so it never spams you. Leave blank to use your plan's cap (${fireCap}).`,
             )}
           </p>
         </Field>
@@ -362,7 +437,7 @@ export function AlertForm() {
         <div className="flex items-start justify-between gap-3">
           <p className="text-xs text-slate-500">
             {t(
-              'این یادداشت همراه اعلان برای شما فرستاده می‌شود؛ پس در لحظهٔ رسیدن قیمت دقیقاً می‌دانید قرار بود چه کاری انجام دهید.',
+              'این یادداشت همراه اعلان برای شما فرستاده می‌شود؛ پس در لحطهٔ رسیدن قیمت دقیقاً می‌دانید قرار بود چه کاری انجام دهید.',
               'Sent to you with the notification, so the moment the price hits you know exactly what you meant to do.',
             )}
           </p>
@@ -378,17 +453,28 @@ export function AlertForm() {
         <div className="space-y-2">
           <Check
             checked={chTelegram}
-            onChange={setChTelegram}
+            onChange={(v) => toggleChannel('telegram', v, setChTelegram)}
+            locked={channelLocked('telegram')}
             label={`${t('تلگرام', 'Telegram')} ${user && !user.telegramLinked ? t('(متصل نشده)', '(not linked)') : ''}`}
           />
-          <Check checked={chEmail} onChange={setChEmail} label={t('ایمیل', 'Email')} />
+          <Check
+            checked={chEmail}
+            onChange={(v) => toggleChannel('email', v, setChEmail)}
+            locked={channelLocked('email')}
+            label={t('ایمیل', 'Email')}
+          />
           {chEmail && user?.email && (
             <p className="ps-6 text-xs text-slate-500">
               {t('ارسال به ', 'Sent to ')}
               <span dir="ltr">{user.email}</span>
             </p>
           )}
-          <Check checked={chDiscord} onChange={setChDiscord} label={t('دیسکورد (وبهوک)', 'Discord (webhook)')} />
+          <Check
+            checked={chDiscord}
+            onChange={(v) => toggleChannel('discord', v, setChDiscord)}
+            locked={channelLocked('discord')}
+            label={t('دیسکورد (وبهوک)', 'Discord (webhook)')}
+          />
           {chDiscord && (
             <input
               value={discordUrl}
@@ -398,18 +484,27 @@ export function AlertForm() {
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-brand"
             />
           )}
+          {/* Announced, not yet deliverable — the API rejects sms on every plan. */}
+          <label className="flex cursor-not-allowed items-center gap-2 text-sm text-slate-500">
+            <input type="checkbox" disabled className="size-4" />
+            <span>{t('پیامک موبایل', 'Mobile SMS')}</span>
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-300">
+              {t('به‌زودی', 'Coming soon')}
+            </span>
+          </label>
+          {ent && ent.channelsPerAlert === 1 && (
+            <p className="text-xs text-slate-500">
+              {t(
+                'در پلن رایگان هر هشدار فقط یک کانال دارد؛ برای تغییر، اول کانال فعلی را بردارید.',
+                'On the free plan each alert uses one channel — untick the current one to switch.',
+              )}
+            </p>
+          )}
         </div>
       </Field>
 
       {error && <p className="text-sm text-rose-400">{error}</p>}
-      {upgrade && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
-          <p className="text-amber-300">{t('به سقف ۳ هشدار رایگان رسیده‌اید.', "You've reached the 3 free-alert limit.")}</p>
-          <Link href="/billing" className="text-brand underline">
-            {t('ارتقا به اشتراک ←', 'Upgrade to a subscription →')}
-          </Link>
-        </div>
-      )}
+      {blocked && <UpgradeNotice blocked={blocked} tier={tier} nextPlan={nextPlan} lang={lang} t={t} />}
 
       <button
         type="submit"
@@ -422,9 +517,77 @@ export function AlertForm() {
   )
 }
 
-function Check({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+// Names the exact thing the plan refused. "Candle close needs Pro" converts; a
+// bare "upgrade required" does not.
+function UpgradeNotice({
+  blocked,
+  tier,
+  nextPlan,
+  lang,
+  t,
+}: {
+  blocked: Blocked
+  tier: PlanId
+  nextPlan: PlanId | null
+  lang: 'fa' | 'en'
+  t: (fa: string, en: string) => string
+}) {
+  const next = planName(nextPlan ?? 'gold', lang)
+  const current = planName(tier, lang)
+  const reason = (() => {
+    switch (blocked.feature) {
+      case 'percent':
+        return t('هشدار درصد تغییر', 'Percent-change alerts')
+      case 'candle_close':
+        return t('هشدار بسته‌شدن کندل', 'Candle-close alerts')
+      case 'timeframe':
+        return t(`تایم‌فریم ${blocked.detail}`, `The ${blocked.detail} timeframe`)
+      case 'recurring':
+        return t('هشدار تکرارشونده', 'Recurring alerts')
+      case 'channel':
+        return t(`اعلان از طریق ${blocked.detail}`, `The ${blocked.detail} channel`)
+      case 'channelsPerAlert':
+        return t(
+          `بیش از ${blocked.detail} کانال برای یک هشدار`,
+          `More than ${blocked.detail} channel(s) on one alert`,
+        )
+      case 'maxFires':
+        return t(`بیش از ${blocked.detail} بار تکرار اعلان`, `More than ${blocked.detail} notifications per alert`)
+      case 'alertLimit':
+        return t(
+          `ساخت هشدار بیشتر از سقف ${blocked.detail} تایی پلن ${current}`,
+          `More than the ${blocked.detail}-alert limit of the ${current} plan`,
+        )
+      default:
+        return t('این قابلیت', 'This feature')
+    }
+  })()
+
   return (
-    <label className="flex items-center gap-2 cursor-pointer text-sm">
+    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm space-y-1">
+      <p className="text-amber-300">
+        {t(`${reason} در پلن ${current} فعال نیست.`, `${reason} aren't included in the ${current} plan.`)}
+      </p>
+      <Link href="/billing" className="text-brand underline">
+        {t(`ارتقا به پلن ${next} ←`, `Upgrade to ${next} →`)}
+      </Link>
+    </div>
+  )
+}
+
+function Check({
+  checked,
+  onChange,
+  label,
+  locked,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: string
+  locked?: boolean
+}) {
+  return (
+    <label className={`flex items-center gap-2 cursor-pointer text-sm ${locked ? 'text-slate-500' : ''}`}>
       <input
         type="checkbox"
         checked={checked}
@@ -432,6 +595,7 @@ function Check({ checked, onChange, label }: { checked: boolean; onChange: (v: b
         className="size-4 accent-emerald-500"
       />
       <span>{label}</span>
+      {locked && <LockIcon />}
     </label>
   )
 }
