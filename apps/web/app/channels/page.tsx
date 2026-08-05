@@ -154,8 +154,28 @@ function Channels() {
         </div>
         <p className="text-sm text-slate-400">
           {t(
-            'آدرس وبهوک دیسکورد را هنگام ساخت هر هشدار وارد کنید. (تنظیمات کانال ← Integrations ← Webhooks)',
+            'آدرس وبهوک دیسکورد را هنگام ساخت هر هشدار وارد کنید. (تنطیمات کانال ← Integrations ← Webhooks)',
             'Enter a Discord webhook URL when creating each alert. (Channel settings → Integrations → Webhooks)',
+          )}
+        </p>
+      </div>
+
+      {/* SMS — on the roadmap. Kept visible so the gold plan's promise is honest
+          about what is live today. */}
+      <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-5 space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span aria-hidden className="text-lg">📱</span>
+            <span className="font-semibold text-slate-300">{t('پیامک موبایل', 'Mobile SMS')}</span>
+          </div>
+          <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs text-amber-300">
+            {t('به‌زودی', 'Coming soon')}
+          </span>
+        </div>
+        <p className="text-sm text-slate-500">
+          {t(
+            'اعلان پیامکی برای پلن طلایی در حال آماده‌سازی است و به محض فعال‌شدن، بدون هزینهٔ اضافه در دسترس شما قرار می‌گیرد.',
+            'SMS notifications for the Gold plan are in the works and will be available at no extra cost as soon as they go live.',
           )}
         </p>
       </div>
