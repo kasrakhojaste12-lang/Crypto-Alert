@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import { useUser } from '@/lib/useUser'
 import { useT } from '@/lib/i18n'
 import { Shell } from '@/components/Shell'
-import { TelegramIcon, DiscordIcon } from '@/components/BrandIcons'
+import { TelegramIcon, DiscordIcon, EmailIcon } from '@/components/BrandIcons'
 
 export default function ChannelsPage() {
   return (
@@ -40,10 +40,12 @@ function Channels() {
     }
   }
 
-  async function setTelegramLanguage(language: 'fa' | 'en') {
+  // One preference for every channel. The API field is still called
+  // telegramLanguage for backwards compatibility.
+  async function setNotificationLanguage(language: 'fa' | 'en') {
     setBusy(true)
     try {
-      await api('/api/channels/telegram/language', {
+      await api('/api/channels/language', {
         method: 'POST',
         body: JSON.stringify({ language }),
       })
@@ -120,34 +122,28 @@ function Channels() {
             )}
           </>
         )}
+      </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4">
-          <span className="text-sm text-slate-400">
-            {t('زبان پیام‌های هشدار', 'Alert message language')}
-          </span>
-          <div
-            role="group"
-            aria-label={t('زبان پیام‌های تلگرام', 'Telegram message language')}
-            className="inline-flex rounded-xl border border-slate-700 bg-slate-900 p-1"
-          >
-            {(['fa', 'en'] as const).map((language) => (
-              <button
-                key={language}
-                type="button"
-                aria-pressed={user?.telegramLanguage === language}
-                disabled={busy}
-                onClick={() => setTelegramLanguage(language)}
-                className={`rounded-lg px-3 py-1.5 text-sm transition disabled:opacity-50 ${
-                  user?.telegramLanguage === language
-                    ? 'bg-brand font-semibold text-slate-950'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                {language === 'fa' ? 'فارسی' : 'English'}
-              </button>
-            ))}
+      {/* Email */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <EmailIcon className="h-6 w-6" />
+            <span className="font-semibold">{t('ایمیل', 'Email')}</span>
           </div>
+          <span className="rounded-full bg-brand/20 px-2.5 py-1 text-xs text-brand">{t('آماده', 'Ready')}</span>
         </div>
+        <p className="text-sm text-slate-400">
+          {t(
+            'هشدارها به ایمیل حساب شما ارسال می‌شود؛ نیازی به اتصال جداگانه نیست. کافی است هنگام ساخت هشدار، کانال ایمیل را انتخاب کنید.',
+            'Alerts go to your account email — no separate connection needed. Just tick the email channel when you create an alert.',
+          )}
+        </p>
+        {user?.email && (
+          <p className="text-sm text-slate-300" dir="ltr">
+            {user.email}
+          </p>
+        )}
       </div>
 
       {/* Discord */}
@@ -162,6 +158,40 @@ function Channels() {
             'Enter a Discord webhook URL when creating each alert. (Channel settings → Integrations → Webhooks)',
           )}
         </p>
+      </div>
+
+      {/* Message language — applies to every channel */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-semibold">{t('زبان پیام‌های هشدار', 'Alert message language')}</p>
+            <p className="text-xs text-slate-500">
+              {t('روی همه کانال‌ها اعمال می‌شود: تلگرام، ایمیل و دیسکورد.', 'Applies to all channels: Telegram, email and Discord.')}
+            </p>
+          </div>
+          <div
+            role="group"
+            aria-label={t('زبان پیام‌های هشدار', 'Alert message language')}
+            className="inline-flex rounded-xl border border-slate-700 bg-slate-900 p-1"
+          >
+            {(['fa', 'en'] as const).map((language) => (
+              <button
+                key={language}
+                type="button"
+                aria-pressed={user?.telegramLanguage === language}
+                disabled={busy}
+                onClick={() => setNotificationLanguage(language)}
+                className={`rounded-lg px-3 py-1.5 text-sm transition disabled:opacity-50 ${
+                  user?.telegramLanguage === language
+                    ? 'bg-brand font-semibold text-slate-950'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                {language === 'fa' ? 'فارسی' : 'English'}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

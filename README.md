@@ -1,6 +1,6 @@
 # الرت کی (Alert Key) — Persian Crypto Price-Alert Service
 
-A localized, lower-cost alternative to TradingView alerts for Iranian users. Set **price** and **percent-change** alerts on any Binance trading pair and get notified the instant the condition is met — via **Telegram or Discord** (email channel temporarily disabled; planned for later). Persian, fully RTL. Free tier of 3 alerts; more via a **Zibal** subscription.
+A localized, lower-cost alternative to TradingView alerts for Iranian users. Set **price** and **percent-change** alerts on any Binance trading pair and get notified the instant the condition is met — via **Telegram, email, or Discord**. Persian, fully RTL. Free tier of 3 alerts; more via a **Zibal** subscription.
 
 ## Why the split architecture
 
@@ -53,11 +53,11 @@ npm run db:migrate          # create tables
 | Var | What | Where to get it |
 |-----|------|-----------------|
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` | Telegram bot | [@BotFather](https://t.me/BotFather) → `/newbot` |
-| `SMTP_*` | Email delivery — **disabled for now**, kept for when the email channel is re-added | any transactional SMTP reachable from the core |
+| `SMTP_*` | Email delivery — alert emails and password resets | any transactional SMTP reachable from the core |
 | `ZIBAL_MERCHANT` | Payment gateway | `zibal` for sandbox; your real merchant code for production |
 | `JWT_SECRET`, `BRIDGE_SHARED_SECRET` | Signing secrets | generate random strings |
 
-Discord needs no global secret — each alert carries its own webhook URL.
+Discord needs no global secret — each alert carries its own webhook URL. Email needs no per-user setup either: alerts go to the address the account was registered with.
 
 ## Run (4 processes)
 
@@ -87,6 +87,7 @@ curl -X POST localhost:4000/api/dev/tick -H "content-type: application/json" -d 
 - **Feed** — independent Spot and Futures WebSockets subscribe only to watched symbols and deliver last price + 24h % change. Each reconnects with backoff and restores its own subscriptions.
 - **Crossing detection** (anti-spam) — fires only on a *crossing* (prev on one side, current on/over the target), never repeatedly while the price sits past the level. `recurring` alerts re-arm after the price returns to the opposite side. See `apps/core/src/engine/crossing.ts`.
 - **Queue** — a fired alert enqueues one BullMQ job per channel (deterministic `jobId` → idempotent), decoupling matching from delivery. Workers retry with backoff; exhausted jobs dead-letter.
+- **Message language** — one per-user preference (`fa` / `en`) applies to every channel. It lives in `User.telegramLanguage`, a legacy column name kept to avoid a migration.
 - **Free tier** — 3 active alerts; the 4th returns `402 upgrade_required` unless an active subscription exists.
 - **Billing** — core `/billing/checkout` → signed redirect to the bridge → Zibal request → user pays → Zibal callback → bridge verifies → HMAC-signed confirm to core → subscription activated.
 
@@ -95,7 +96,8 @@ curl -X POST localhost:4000/api/dev/tick -H "content-type: application/json" -d 
 ```
 POST /api/auth/register | /login | /logout      GET /api/auth/me
 GET|POST /api/alerts     PATCH|DELETE /api/alerts/:id     POST /api/alerts/:id/reset
-POST /api/channels/telegram/link|language        GET /api/channels/status
+POST /api/channels/telegram/link|unlink          POST /api/channels/language
+GET  /api/channels/status
 GET  /api/symbols        GET /api/symbols/price/:symbol?market=spot|futures
 POST /api/billing/checkout                        POST /api/billing/zibal/confirm  (bridge only, HMAC)
 ```

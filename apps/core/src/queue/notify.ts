@@ -3,10 +3,12 @@ import { newRedis } from '../lib/redis'
 
 export const NOTIFY_QUEUE = 'notifications'
 
+export type NotifyChannel = 'telegram' | 'discord' | 'email'
+
 export interface NotifyJob {
   alertId: string
   fireSeq: number
-  channel: 'telegram' | 'discord'
+  channel: NotifyChannel
   identifier: string
   symbol: string
   price: number

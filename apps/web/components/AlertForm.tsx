@@ -54,7 +54,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function TradingViewChart({ symbol, market, label }: { symbol: string; market: Market; label: string }) {
   const container = useRef<HTMLDivElement>(null)
   const tvSymbol = `BINANCE:${symbol}${market === 'futures' ? '.P' : ''}`
-  const symbolUrl = `https://www.tradingview.com/symbols/${symbol}${market === 'futures' ? '.P' : ''}/?exchange=BINANCE`
+  const symbolUrl = `{{https://www.tradingview.com/symbols/${symbol}}}${market === 'futures' ? '.P' : ''}/?exchange=BINANCE`
 
   useEffect(() => {
     const node = container.current
@@ -133,6 +133,7 @@ export function AlertForm() {
   const [maxFires, setMaxFires] = useState('') // recurring only; blank = unlimited
 
   const [chTelegram, setChTelegram] = useState(true)
+  const [chEmail, setChEmail] = useState(false)
   const [chDiscord, setChDiscord] = useState(false)
   const [discordUrl, setDiscordUrl] = useState('')
 
@@ -156,6 +157,8 @@ export function AlertForm() {
 
     const channels: { type: string; identifier?: string }[] = []
     if (chTelegram) channels.push({ type: 'telegram' })
+    // No identifier for email: the server always uses the account address.
+    if (chEmail) channels.push({ type: 'email' })
     if (chDiscord) channels.push({ type: 'discord', identifier: discordUrl })
     if (!channels.length) return setError(t('حداقل یک کانال اعلان انتخاب کنید', 'Select at least one notification channel'))
 
@@ -347,6 +350,13 @@ export function AlertForm() {
             onChange={setChTelegram}
             label={`${t('تلگرام', 'Telegram')} ${user && !user.telegramLinked ? t('(متصل نشده)', '(not linked)') : ''}`}
           />
+          <Check checked={chEmail} onChange={setChEmail} label={t('ایمیل', 'Email')} />
+          {chEmail && user?.email && (
+            <p className="ps-6 text-xs text-slate-500">
+              {t('ارسال به ', 'Sent to ')}
+              <span dir="ltr">{user.email}</span>
+            </p>
+          )}
           <Check checked={chDiscord} onChange={setChDiscord} label={t('دیسکورد (وبهوک)', 'Discord (webhook)')} />
           {chDiscord && (
             <input

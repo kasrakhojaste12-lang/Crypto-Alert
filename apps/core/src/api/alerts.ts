@@ -17,8 +17,8 @@ const router = Router()
 router.use(requireAuth)
 
 const channelInput = z.object({
-  type: z.enum(['telegram', 'discord']), // email: temporarily removed, re-add later
-  identifier: z.string().optional(), // resolved server-side for telegram
+  type: z.enum(['telegram', 'discord', 'email']),
+  identifier: z.string().optional(), // resolved server-side for telegram and email
 })
 
 export const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d'] as const
@@ -97,11 +97,20 @@ class HttpError extends Error {
   }
 }
 
-async function resolveChannels(user: { telegramChatId: string | null }, channels: z.infer<typeof channelInput>[]) {
+async function resolveChannels(
+  user: { telegramChatId: string | null; email: string },
+  channels: z.infer<typeof channelInput>[],
+) {
   return channels.map((c) => {
     if (c.type === 'telegram') {
       if (!user.telegramChatId) throw new HttpError(400, 'telegram_not_linked')
       return { type: 'telegram', identifier: user.telegramChatId }
+    }
+    // Email always goes to the account address — no separate linking step, and a
+    // client-supplied identifier is ignored so nobody can alert-spam a stranger.
+    if (c.type === 'email') {
+      if (!user.email) throw new HttpError(400, 'email_missing')
+      return { type: 'email', identifier: user.email }
     }
     // discord
     if (!c.identifier || !isDiscordWebhook(c.identifier)) throw new HttpError(400, 'invalid_discord_webhook')
