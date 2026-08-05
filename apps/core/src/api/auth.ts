@@ -6,7 +6,8 @@ import { z } from 'zod'
 import { prisma } from '../lib/db'
 import { signToken } from '../lib/jwt'
 import { requireAuth, type AuthedRequest } from '../lib/auth'
-import { FREE_ALERT_LIMIT, PAID_ALERT_LIMIT, activeAlertCount } from '../lib/limits'
+import { activeAlertCount, planOf } from '../lib/limits'
+import { PLANS, nextPlanFor } from '../lib/plans'
 import { sendEmail } from '../dispatch/email'
 import { passwordResetEmail } from '../dispatch/emails'
 import { signReset, resetSubject, verifyReset } from '../lib/reset'
@@ -179,8 +180,9 @@ router.post('/reset-password', async (req, res) => {
 router.get('/me', requireAuth, async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId } })
   if (!user) return res.status(404).json({ error: 'not_found' })
-  const [activeAlerts, sub] = await Promise.all([
+  const [activeAlerts, tier, sub] = await Promise.all([
     activeAlertCount(user.id),
+    planOf(user.id),
     prisma.subscription.findFirst({
       where: { userId: user.id, status: 'active', periodEnd: { gt: new Date() } },
       orderBy: { periodEnd: 'desc' },
@@ -189,12 +191,17 @@ router.get('/me', requireAuth, async (req: AuthedRequest, res) => {
   res.json({
     id: user.id,
     email: user.email,
+    // Legacy coarse flag ('free' | 'paid'); `tier` is the real plan.
     plan: user.plan,
+    tier,
+    // Shipped whole so the forms mirror the server instead of hardcoding limits.
+    entitlements: PLANS[tier],
+    nextPlan: nextPlanFor(tier),
     telegramLinked: !!user.telegramChatId,
     telegramLanguage: user.telegramLanguage,
     activeAlerts,
-    freeLimit: FREE_ALERT_LIMIT,
-    alertLimit: sub ? PAID_ALERT_LIMIT : FREE_ALERT_LIMIT,
+    freeLimit: PLANS.free.alertLimit,
+    alertLimit: PLANS[tier].alertLimit,
     subscription: sub,
   })
 })
