@@ -11,7 +11,10 @@ import { describeAlert, baseOf, type AlertShape } from '@/lib/format'
 
 interface Alert extends AlertShape {
   id: string
+  note?: string | null
 }
+
+const NOTE_MAX = 500
 
 export default function EditAlertPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -28,10 +31,11 @@ function EditAlert({ id }: { id: string }) {
   const { lang } = useLang()
   const { data: alerts } = useSWR<Alert[]>('/api/alerts', api)
   const alert = alerts?.find((a) => a.id === id)
-  // null until the user types: the field shows the alert's current target, but
-  // the alert only arrives after the request resolves, so the value cannot be
-  // seeded in useState.
+  // null until the user types: the fields show the alert's current values, but
+  // the alert only arrives after the request resolves, so they cannot be seeded
+  // in useState.
   const [edited, setEdited] = useState<string | null>(null)
+  const [editedNote, setEditedNote] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   if (!alerts) return <p className="text-slate-500 text-sm">{t('در حال بارگذاری…', 'Loading…')}</p>
@@ -39,12 +43,16 @@ function EditAlert({ id }: { id: string }) {
 
   const base = baseOf(alert.symbol)
   const target = edited ?? String(alert.target)
+  const note = editedNote ?? alert.note ?? ''
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true)
     try {
-      await api(`/api/alerts/${id}`, { method: 'PATCH', body: JSON.stringify({ target: Number(target) }) })
+      await api(`/api/alerts/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ target: Number(target), note: note.trim() || null }),
+      })
       router.push('/dashboard')
     } finally {
       setBusy(false)
@@ -84,6 +92,28 @@ function EditAlert({ id }: { id: string }) {
               onFocus={(e) => e.currentTarget.select()}
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
             />
+          </div>
+          <div className="space-y-2">
+            <label className="block text-sm text-slate-400">{t('یادداشت (اختیاری)', 'Note (optional)')}</label>
+            <textarea
+              value={note}
+              onChange={(e) => setEditedNote(e.target.value)}
+              rows={3}
+              maxLength={NOTE_MAX}
+              placeholder={t('مثلاً: ۳۰٪ پوزیشن را ببند و حد ضرر را به نقطه ورود بیاور', 'e.g. Close 30% of the position and move the stop to entry')}
+              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
+            />
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-xs text-slate-500">
+                {t(
+                  'این یادداشت همراه اعلان برای شما فرستاده می‌شود.',
+                  'Sent to you along with the notification.',
+                )}
+              </p>
+              <span dir="ltr" className="shrink-0 text-xs text-slate-600">
+                {note.length}/{NOTE_MAX}
+              </span>
+            </div>
           </div>
           <button
             type="submit"

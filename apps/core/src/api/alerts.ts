@@ -23,6 +23,11 @@ const channelInput = z.object({
 
 export const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d'] as const
 
+// Long enough for a real trading plan, short enough to survive every channel's
+// message limits once it is appended to the alert body.
+export const NOTE_MAX_LENGTH = 500
+const noteInput = z.string().trim().max(NOTE_MAX_LENGTH).nullish()
+
 const alertInput = z
   .object({
     symbol: z.string().trim().min(3).regex(/^[a-z0-9]+$/i).transform((s) => s.toUpperCase()),
@@ -34,6 +39,7 @@ const alertInput = z
     timeframe: z.enum(TIMEFRAMES).nullish(), // candle_close only
     repeat: z.enum(['one_time', 'recurring']).default('one_time'),
     maxFires: z.number().int().positive().max(1000).nullish(), // recurring only; null = unlimited
+    note: noteInput,
     channels: z.array(channelInput).min(1),
   })
   .refine((d) => d.type !== 'percent' || !!d.percentBasis, {
@@ -46,6 +52,7 @@ const alertInput = z
 const patchInput = z.object({
   status: z.enum(['active', 'paused']).optional(),
   target: z.number().optional(),
+  note: noteInput,
 })
 
 function serialize(a: any) {
@@ -185,6 +192,9 @@ router.post('/', async (req: AuthedRequest, res) => {
           repeat: p.data.repeat,
           // maxFires only applies to recurring alerts
           maxFires: p.data.repeat === 'recurring' ? p.data.maxFires ?? null : null,
+          // Blank notes are stored as NULL so the notification never grows an
+          // empty "Note:" line.
+          note: p.data.note || null,
           status: 'active',
           channels,
         },
@@ -245,6 +255,7 @@ export async function patchAlert(req: AuthedRequest, res: Response) {
   const data: any = {}
   if (p.data.target !== undefined) data.target = p.data.target
   if (p.data.status) data.status = p.data.status
+  if (p.data.note !== undefined) data.note = p.data.note || null
   if (!Object.keys(data).length) return res.json(serialize(a))
 
   const changed = await prisma.alert.updateMany({
