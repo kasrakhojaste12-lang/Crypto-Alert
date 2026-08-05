@@ -26,9 +26,11 @@ const worker = new Worker<NotifyJob>(
       return
     }
 
+    // The note is read here rather than carried in the job payload, so an edited
+    // note still reaches deliveries that were queued before the edit.
     const alert = await prisma.alert.findUnique({
       where: { id: j.alertId },
-      select: { user: { select: { telegramLanguage: true } } },
+      select: { note: true, user: { select: { telegramLanguage: true } } },
     })
     if (!alert) {
       log.info({ alert: j.alertId, job: job.id }, 'alert deleted; skipping notification')
@@ -38,7 +40,7 @@ const worker = new Worker<NotifyJob>(
     // The language preference applies to EVERY channel, not just Telegram. The
     // column keeps its legacy `telegramLanguage` name to avoid a migration.
     const language = alert.user.telegramLanguage === 'en' ? 'en' : 'fa'
-    const { title, body } = buildMessage(j, language)
+    const { title, body } = buildMessage(j, language, alert.note)
     try {
       if (j.channel === 'telegram') await sendTelegram(j.identifier, body)
       else if (j.channel === 'discord') await sendDiscord(j.identifier, body)
