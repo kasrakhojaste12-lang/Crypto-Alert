@@ -14,6 +14,8 @@ type Repeat = 'one_time' | 'recurring'
 type TF = '1m' | '5m' | '15m' | '1h' | '4h' | '1d'
 type Market = 'spot' | 'futures'
 const TIMEFRAMES: TF[] = ['1m', '5m', '15m', '1h', '4h', '1d']
+// Mirrors NOTE_MAX_LENGTH in apps/core/src/api/alerts.ts
+const NOTE_MAX = 500
 
 function Seg<T extends string>({
   value,
@@ -131,6 +133,7 @@ export function AlertForm() {
   const [target, setTarget] = useState('')
   const [repeat, setRepeat] = useState<Repeat>('one_time')
   const [maxFires, setMaxFires] = useState('') // recurring only; blank = unlimited
+  const [note, setNote] = useState('')
 
   const [chTelegram, setChTelegram] = useState(true)
   const [chEmail, setChEmail] = useState(false)
@@ -176,6 +179,7 @@ export function AlertForm() {
           timeframe: type === 'candle_close' ? timeframe : null,
           repeat,
           maxFires: maxFiresNum,
+          note: note.trim() || null,
           channels,
         }),
       })
@@ -342,6 +346,33 @@ export function AlertForm() {
           </p>
         </Field>
       )}
+
+      <Field label={t('یادداشت (اختیاری)', 'Note (optional)')}>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={3}
+          maxLength={NOTE_MAX}
+          placeholder={t(
+            'مثلاً: ۳۰٪ پوزیشن را ببند و حد ضرر را به نقطه ورود بیاور',
+            'e.g. Close 30% of the position and move the stop to entry',
+          )}
+          className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
+        />
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-xs text-slate-500">
+            {t(
+              'این یادداشت همراه اعلان برای شما فرستاده می‌شود؛ پس در لحظهٔ رسیدن قیمت دقیقاً می‌دانید قرار بود چه کاری انجام دهید.',
+              'Sent to you with the notification, so the moment the price hits you know exactly what you meant to do.',
+            )}
+          </p>
+          {note.length > 0 && (
+            <span dir="ltr" className="shrink-0 text-xs text-slate-600">
+              {note.length}/{NOTE_MAX}
+            </span>
+          )}
+        </div>
+      </Field>
 
       <Field label={t('کانال‌های اعلان', 'Notification channels')}>
         <div className="space-y-2">
