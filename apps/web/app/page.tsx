@@ -1,7 +1,8 @@
 'use client'
 import Link from 'next/link'
-import { useT } from '@/lib/i18n'
+import { useLang, useT } from '@/lib/i18n'
 import { useUser } from '@/lib/useUser'
+import { fmtNum } from '@/lib/format'
 import { LangToggle } from '@/components/LangToggle'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
@@ -18,7 +19,13 @@ function FeatureIcon({ children }: { children: React.ReactNode }) {
 
 export default function Home() {
   const t = useT()
-  const { user } = useUser()
+  const { lang } = useLang()
+  const { user, isLoading } = useUser()
+  // The session is unknown until /api/auth/me answers. Rendering the guest
+  // buttons in the meantime is what made a signed-in visit look signed-out, so
+  // the CTAs hold their space and stay invisible until the answer arrives.
+  const authPending = isLoading && !user
+  const hidden = authPending ? 'invisible' : ''
   const features = [
     {
       icon: (
@@ -54,10 +61,10 @@ export default function Home() {
           <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
         </FeatureIcon>
       ),
-      title: t('اعلان تلگرام و دیسکورد', 'Telegram & Discord'),
+      title: t('اعلان تلگرام، ایمیل و دیسکورد', 'Telegram, email & Discord'),
       body: t(
-        'پیام فوری در تلگرام یا دیسکورد، بدون تأخیر و بدون اسپم؛ هر هشدار فقط یک‌بار.',
-        'Instant Telegram or Discord messages — no delay, no spam, each alert fires once.',
+        'پیام فوری در تلگرام، ایمیل یا دیسکورد، بدون تأخیر و بدون اسپم؛ هر هشدار فقط یک‌بار.',
+        'Instant Telegram, email, or Discord messages — no delay, no spam, each alert fires once.',
       ),
     },
   ]
@@ -82,7 +89,7 @@ export default function Home() {
                 {t('داشبورد', 'Dashboard')}
               </Link>
             ) : (
-              <Link href="/login" className="text-sm text-slate-400 hover:text-white transition">
+              <Link href="/login" className={`text-sm text-slate-400 hover:text-white transition ${hidden}`}>
                 {t('ورود', 'Login')}
               </Link>
             )}
@@ -101,26 +108,50 @@ export default function Home() {
         </h1>
         <p className="text-slate-400 mt-4 max-w-md mx-auto">
           {t(
-            'روی هر جفت‌ارز بایننس هشدار قیمت یا درصد تغییر بساز و در تلگرام و دیسکورد فوری باخبر شو — جایگزین ارزان‌تر هشدارهای تریدینگ‌ویو.',
-            'Set price or percent-change alerts on any Binance pair and get notified instantly on Telegram and Discord — a cheaper alternative to TradingView alerts.',
+            'روی هر جفت‌ارز بایننس هشدار قیمت یا درصد تغییر بساز و در تلگرام، ایمیل و دیسکورد فوری باخبر شو — جایگزین ارزان‌تر هشدارهای تریدینگ‌ویو.',
+            'Set price or percent-change alerts on any Binance pair and get notified instantly on Telegram, email, or Discord — a cheaper alternative to TradingView alerts.',
           )}
         </p>
-        <div className="mt-8 flex items-center justify-center gap-3">
-          <Link
-            href="/register"
-            className="rounded-xl bg-brand px-6 py-3 font-semibold text-slate-950 hover:bg-brand-dark transition"
-          >
-            {t('رایگان شروع کن', 'Start free')}
-          </Link>
-          <Link
-            href="/login"
-            className="rounded-xl border border-slate-700 px-6 py-3 font-semibold text-slate-200 hover:border-slate-500 transition"
-          >
-            {t('ورود', 'Login')}
-          </Link>
+        <div className={`mt-8 flex items-center justify-center gap-3 ${hidden}`}>
+          {user ? (
+            <>
+              <Link
+                href="/dashboard"
+                className="rounded-xl bg-brand px-6 py-3 font-semibold text-slate-950 hover:bg-brand-dark transition"
+              >
+                {t('داشبورد من', 'My dashboard')}
+              </Link>
+              <Link
+                href="/alerts/new"
+                className="rounded-xl border border-slate-700 px-6 py-3 font-semibold text-slate-200 hover:border-slate-500 transition"
+              >
+                {t('ساخت هشدار', 'New alert')}
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/register"
+                className="rounded-xl bg-brand px-6 py-3 font-semibold text-slate-950 hover:bg-brand-dark transition"
+              >
+                {t('رایگان شروع کن', 'Start free')}
+              </Link>
+              <Link
+                href="/login"
+                className="rounded-xl border border-slate-700 px-6 py-3 font-semibold text-slate-200 hover:border-slate-500 transition"
+              >
+                {t('ورود', 'Login')}
+              </Link>
+            </>
+          )}
         </div>
-        <p className="text-xs text-slate-500 mt-4">
-          {t('۳ هشدار رایگان — بدون نیاز به کارت بانکی', '3 free alerts — no card required')}
+        <p className={`text-xs text-slate-500 mt-4 ${hidden}`}>
+          {user
+            ? t(
+                `${fmtNum(user.activeAlerts, lang)} هشدار فعال از ${fmtNum(user.alertLimit, lang)}`,
+                `${fmtNum(user.activeAlerts, lang)} of ${fmtNum(user.alertLimit, lang)} alerts in use`,
+              )
+            : t('۳ هشدار رایگان — بدون نیاز به کارت بانکی', '3 free alerts — no card required')}
         </p>
       </section>
 
@@ -136,18 +167,27 @@ export default function Home() {
 
       <section className="mx-auto max-w-3xl px-4 pb-20">
         <div className="rounded-2xl border border-brand/30 bg-brand/5 p-8 text-center space-y-4">
-          <h2 className="text-xl font-bold">{t('آمادهٔ ساختن اولین هشدار؟', 'Ready to build your first alert?')}</h2>
+          <h2 className="text-xl font-bold">
+            {user
+              ? t('هشدار بعدی‌ات را بساز', 'Build your next alert')
+              : t('آمادهٔ ساختن اولین هشدار؟', 'Ready to build your first alert?')}
+          </h2>
           <p className="text-sm text-slate-400">
-            {t(
-              'ثبت‌نام در کمتر از یک دقیقه. تا ۳۰ هشدار با اشتراک ماهانه و پرداخت امن از طریق زیبال.',
-              'Sign up in under a minute. Up to 30 alerts with a monthly subscription, paid securely via Zibal.',
-            )}
+            {user
+              ? t(
+                  'قیمت هدف را بگذار، کانال اعلان را انتخاب کن و یک یادداشت برای خودت بنویس تا لحظهٔ رسیدن قیمت بدانی چه کاری قرار بود انجام دهی.',
+                  'Set the target, pick a channel, and leave yourself a note so you know what to do the moment it fires.',
+                )
+              : t(
+                  'ثبت‌نام در کمتر از یک دقیقه. تا ۳۰ هشدار با اشتراک ماهانه و پرداخت امن از طریق زیبال.',
+                  'Sign up in under a minute. Up to 30 alerts with a monthly subscription, paid securely via Zibal.',
+                )}
           </p>
           <Link
-            href="/register"
-            className="inline-block rounded-xl bg-brand px-6 py-3 font-semibold text-slate-950 hover:bg-brand-dark transition"
+            href={user ? '/alerts/new' : '/register'}
+            className={`inline-block rounded-xl bg-brand px-6 py-3 font-semibold text-slate-950 hover:bg-brand-dark transition ${hidden}`}
           >
-            {t('ساختن حساب رایگان', 'Create a free account')}
+            {user ? t('ساخت هشدار جدید', 'Create a new alert') : t('ساختن حساب رایگان', 'Create a free account')}
           </Link>
         </div>
       </section>
