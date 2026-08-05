@@ -24,6 +24,27 @@ const STABLES = new Set([
 const isStablePair = (s: { baseAsset: string; quoteAsset: string }) =>
   STABLES.has(s.baseAsset) && STABLES.has(s.quoteAsset)
 
+// Roughly CoinMarketCap's market-cap order, which is what people expect a coin
+// list to look like. Binance exposes no supply data, so real market cap cannot
+// be computed here and 24h volume is a poor stand-in at the top (stablecoin and
+// meme pairs out-trade coins many times their size). This only shapes the head
+// of the list; everything below falls through to the volume sort. It is display
+// order, not data — being a few months stale costs nothing.
+const CAP_RANK = new Map(
+  [
+    'BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'DOGE', 'TRX', 'ADA', 'LINK', 'AVAX',
+    'XLM', 'SUI', 'TON', 'SHIB', 'HBAR', 'BCH', 'DOT', 'LTC', 'XMR', 'PEPE',
+    'UNI', 'NEAR', 'APT', 'ICP', 'ETC', 'POL', 'RENDER', 'ARB', 'FIL', 'ATOM',
+    'OP', 'IMX', 'INJ', 'VET', 'TAO', 'FET', 'SEI', 'RUNE', 'AAVE', 'TIA',
+    'ALGO', 'GRT', 'JUP', 'WIF', 'LDO', 'MKR', 'STX', 'WLD', 'SAND', 'MANA',
+    'AXS', 'EOS', 'FLOW', 'CRV', 'GALA', 'CHZ', 'KAS', 'ONDO', 'ENA', 'S',
+    'BONK', 'FLOKI', 'JASMY', 'PYTH', 'ARKM', 'ENS', 'COMP', 'SNX', 'DYDX',
+    'STRK', 'EIGEN', 'JTO', 'RAY', 'CAKE', 'THETA', 'QNT', 'KAIA', 'NEO',
+    'GMT', 'ZEC', 'DASH', 'ROSE', 'ANKR', 'ZIL', '1INCH', 'BAT',
+  ].map((base, i) => [base, i] as const),
+)
+const capRank = (base: string) => CAP_RANK.get(base) ?? Number.MAX_SAFE_INTEGER
+
 // Fetch every TRADING pair (USDT-quoted first) and update the cache. Returns any
 // symbols that are new since the last refresh — i.e. pairs Binance just listed.
 export async function refreshSymbols(): Promise<{
@@ -33,11 +54,15 @@ export async function refreshSymbols(): Promise<{
   degraded: boolean
 }> {
   const signal = AbortSignal.timeout(8000)
+  // The 24hr tickers are megabytes next to exchangeInfo's kilobytes, so they get
+  // their own, longer deadline. Sharing one 8s signal meant a slow link aborted
+  // the volume data first and silently degraded the ordering to alphabetical.
+  const tickerSignal = AbortSignal.timeout(20_000)
   const [spotEx, spotTk, futuresEx, futuresTk] = await Promise.all([
     fetch(`${SPOT_REST}/api/v3/exchangeInfo`, { signal }),
-    fetch(`${SPOT_REST}/api/v3/ticker/24hr?type=MINI`, { signal }).catch(() => null),
+    fetch(`${SPOT_REST}/api/v3/ticker/24hr?type=MINI`, { signal: tickerSignal }).catch(() => null),
     fetch(`${FUTURES_REST}/fapi/v1/exchangeInfo`, { signal }).catch(() => null),
-    fetch(`${FUTURES_REST}/fapi/v1/ticker/24hr`, { signal }).catch(() => null),
+    fetch(`${FUTURES_REST}/fapi/v1/ticker/24hr`, { signal: tickerSignal }).catch(() => null),
   ])
   if (!spotEx.ok) throw new Error(`spot exchangeInfo ${spotEx.status}`)
   const spotData = await spotEx.json()
@@ -46,8 +71,9 @@ export async function refreshSymbols(): Promise<{
     : { symbols: [] }
   if (!futuresEx?.ok)
     log.warn({ status: futuresEx?.status ?? 'unreachable' }, 'futures symbols unavailable; serving Spot only')
-  // 24h quote volume per symbol, so the picker defaults to the most-traded pairs.
-  // Best-effort: if the ticker call fails, fall back to the USDT-first alpha sort.
+  // 24h quote volume per symbol, so the tail of the picker favours traded pairs.
+  // Best-effort: if the ticker call fails, the curated cap order still holds and
+  // the rest falls back to alphabetical.
   const vol = new Map<string, number>()
   if (spotTk?.ok) {
     for (const t of (await spotTk.json().catch(() => [])) as any[])
@@ -57,6 +83,7 @@ export async function refreshSymbols(): Promise<{
     for (const t of (await futuresTk.json().catch(() => [])) as any[])
       vol.set(`futures|${t.symbol}`, Number(t.quoteVolume) || 0)
   }
+  if (!vol.size) log.warn('24h volume unavailable; pair ordering falls back to the curated list')
   const spot: Sym[] = spotData.symbols
     .filter((s: any) => s.status === 'TRADING' && !isStablePair(s))
     .map((s: any) => ({ symbol: s.symbol, base: s.baseAsset, quote: s.quoteAsset, market: 'spot' }))
@@ -74,6 +101,8 @@ export async function refreshSymbols(): Promise<{
       // (an IDR-quoted pair's volume is a huge number just because IDR is tiny).
       const au = a.quote === 'USDT', bu = b.quote === 'USDT'
       if (au !== bu) return au ? -1 : 1
+      const ra = capRank(a.base), rb = capRank(b.base)
+      if (ra !== rb) return ra - rb // then market-cap order for the coins we rank
       const va = vol.get(`${a.market}|${a.symbol}`) ?? 0, vb = vol.get(`${b.market}|${b.symbol}`) ?? 0
       if (va !== vb) return vb - va // then most 24h volume first
       return a.symbol.localeCompare(b.symbol)
@@ -167,30 +196,64 @@ router.get('/price/:symbol', async (req, res) => {
 })
 
 // Coin icons proxied through the origin so they work from Iran, where the client
-// can't reach assets.coincap.io directly (geo-blocked). Cached in memory.
+// can't reach the upstream CDNs directly (geo-blocked). Cached in memory.
 // ponytail: unbounded Map, but bounded by the coin universe (~few k) — fine.
-const ICON_SRC = 'https://assets.coincap.io/assets/icons'
-const iconCache = new Map<string, { buf: Buffer; type: string } | null>() // null = known-missing
+// Two sources, because coincap's icon set has stopped keeping up and 404s for a
+// lot of listed assets.
+const ICON_SOURCES = [
+  (base: string) => `https://assets.coincap.io/assets/icons/${base}@2x.png`,
+  (base: string) => `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/128/color/${base}.png`,
+]
+type Icon = { buf: Buffer; type: string }
+const iconCache = new Map<string, Icon>()
+
+// Last resort for assets neither CDN carries: a coloured disc with the ticker on
+// it. Hue is derived from the ticker, so an asset always keeps the same colour.
+// Better than a broken image, and it means the endpoint never has to 404.
+function monogram(base: string): Icon {
+  let hue = 0
+  for (const ch of base) hue = (hue * 31 + ch.charCodeAt(0)) % 360
+  const label = base.slice(0, 4).toUpperCase()
+  const fontSize = label.length > 3 ? 24 : 32
+  // `base` is already reduced to [a-z0-9], so it is safe to inline as SVG text.
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">` +
+    `<circle cx="48" cy="48" r="48" fill="hsl(${hue} 52% 40%)"/>` +
+    `<text x="48" y="50" text-anchor="middle" dominant-baseline="central" ` +
+    `font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="${fontSize}" ` +
+    `font-weight="700" fill="#ffffff">${label}</text></svg>`
+  return { buf: Buffer.from(svg), type: 'image/svg+xml' }
+}
 
 router.get('/icon/:base', async (req, res) => {
   const base = req.params.base.toLowerCase().replace(/[^a-z0-9]/g, '')
   if (!base) return res.status(404).end()
-  if (!iconCache.has(base)) {
-    try {
-      const r = await fetch(`${ICON_SRC}/${base}@2x.png`, { signal: AbortSignal.timeout(8000) })
-      iconCache.set(
-        base,
-        r.ok ? { buf: Buffer.from(await r.arrayBuffer()), type: r.headers.get('content-type') || 'image/png' } : null,
-      )
-    } catch {
-      return res.status(502).end() // transient failure — don't cache it
+
+  let icon = iconCache.get(base)
+  // `transient` tracks a source that failed rather than answered "missing", so a
+  // network blip can't pin an asset to its monogram for the process's lifetime.
+  let transient = false
+  if (!icon) {
+    for (const url of ICON_SOURCES) {
+      try {
+        const r = await fetch(url(base), { signal: AbortSignal.timeout(8000) })
+        if (r.ok) {
+          icon = { buf: Buffer.from(await r.arrayBuffer()), type: r.headers.get('content-type') || 'image/png' }
+          break
+        }
+      } catch {
+        transient = true
+      }
     }
+    if (!icon) icon = monogram(base)
+    if (!transient) iconCache.set(base, icon)
   }
-  const hit = iconCache.get(base)
-  if (!hit) return res.status(404).end()
-  res.set('Cache-Control', 'public, max-age=604800') // 1 week; browser-cached
-  res.type(hit.type)
-  res.send(hit.buf)
+
+  // A monogram produced while a source was unreachable is worth re-checking soon;
+  // everything else is stable enough to sit in the browser cache for a week.
+  res.set('Cache-Control', transient ? 'public, max-age=300' : 'public, max-age=604800')
+  res.type(icon.type)
+  res.send(icon.buf)
 })
 
 export default router
