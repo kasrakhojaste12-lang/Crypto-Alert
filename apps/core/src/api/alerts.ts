@@ -4,13 +4,15 @@ import { z } from 'zod'
 import { prisma } from '../lib/db'
 import { requireAuth, type AuthedRequest } from '../lib/auth'
 import { engine, type Market } from '../engine/match'
+import { activeAlertCount, planOf, type LimitDb } from '../lib/limits'
 import {
-  FREE_ALERT_LIMIT,
-  PAID_ALERT_LIMIT,
-  activeAlertCount,
-  hasActiveSubscription,
-  type LimitDb,
-} from '../lib/limits'
+  PLANS,
+  TIMEFRAMES,
+  checkAlertAgainstPlan,
+  clampMaxFires,
+  nextPlanFor,
+  type PlanId,
+} from '../lib/plans'
 import { isDiscordWebhook } from '../dispatch/discord'
 
 const router = Router()
@@ -21,7 +23,13 @@ const channelInput = z.object({
   identifier: z.string().optional(), // resolved server-side for telegram and email
 })
 
-export const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d'] as const
+// Re-exported from the plan table so the timeframe list has one definition.
+export { TIMEFRAMES }
+
+// Long enough for a real trading plan, short enough to survive every channel's
+// message limits once it is appended to the alert body.
+export const NOTE_MAX_LENGTH = 500
+const noteInput = z.string().trim().max(NOTE_MAX_LENGTH).nullish()
 
 const alertInput = z
   .object({
@@ -33,7 +41,8 @@ const alertInput = z
     percentBasis: z.enum(['h24', 'since_created']).nullish(),
     timeframe: z.enum(TIMEFRAMES).nullish(), // candle_close only
     repeat: z.enum(['one_time', 'recurring']).default('one_time'),
-    maxFires: z.number().int().positive().max(1000).nullish(), // recurring only; null = unlimited
+    maxFires: z.number().int().positive().max(1000).nullish(), // clamped to the plan cap
+    note: noteInput,
     channels: z.array(channelInput).min(1),
   })
   .refine((d) => d.type !== 'percent' || !!d.percentBasis, {
@@ -46,6 +55,7 @@ const alertInput = z
 const patchInput = z.object({
   status: z.enum(['active', 'paused']).optional(),
   target: z.number().optional(),
+  note: noteInput,
 })
 
 function serialize(a: any) {
@@ -74,13 +84,17 @@ async function probeSymbol(
   }
 }
 
+// A plan at its ceiling with somewhere to upgrade to gets 'upgrade_required' and
+// the name of the next tier; gold gets 'limit_reached' because there is nothing
+// left to sell it — the only fix is deleting an alert.
 async function alertLimitError(userId: string, db?: LimitDb) {
-  const [count, paid] = await Promise.all([
-    activeAlertCount(userId, db),
-    hasActiveSubscription(userId, db),
-  ])
-  const limit = paid ? PAID_ALERT_LIMIT : FREE_ALERT_LIMIT
-  return count >= limit ? { error: paid ? 'limit_reached' : 'upgrade_required', limit } : null
+  const [count, plan] = await Promise.all([activeAlertCount(userId, db), planOf(userId, db)])
+  const limit = PLANS[plan].alertLimit
+  if (count < limit) return null
+  const nextPlan = nextPlanFor(plan)
+  return nextPlan
+    ? { error: 'upgrade_required', limit, plan, nextPlan }
+    : { error: 'limit_reached', limit, plan }
 }
 
 async function lockAlertSlots(tx: Prisma.TransactionClient, userId: string) {
@@ -137,8 +151,24 @@ router.post('/', async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId } })
   if (!user) return res.status(401).json({ error: 'unauthorized' })
 
-  // Alert-count guard: free = 3, paid = 30. Paid users at the cap get a distinct
-  // code so the UI shows "limit reached" instead of an upgrade prompt.
+  const plan: PlanId = await planOf(user.id)
+
+  // Feature gate before the count gate: "candle close needs Pro" is a more
+  // useful answer than "you're out of alerts" when both happen to be true.
+  const violation = checkAlertAgainstPlan(plan, {
+    type: p.data.type,
+    timeframe: p.data.timeframe ?? null,
+    repeat: p.data.repeat,
+    channels: p.data.channels,
+  })
+  if (violation)
+    return res.status(402).json({
+      error: 'plan_upgrade_required',
+      plan,
+      nextPlan: nextPlanFor(plan),
+      ...violation,
+    })
+
   const limitError = await alertLimitError(user.id)
   if (limitError) return res.status(402).json(limitError)
 
@@ -169,8 +199,10 @@ router.post('/', async (req: AuthedRequest, res) => {
     .$transaction(async (tx) => {
       await lockAlertSlots(tx, user.id)
       const finalLimitError = await alertLimitError(user.id, tx)
-      if (finalLimitError)
-        throw new HttpError(402, finalLimitError.error, { limit: finalLimitError.limit })
+      if (finalLimitError) {
+        const { error, ...details } = finalLimitError
+        throw new HttpError(402, error, details)
+      }
       return tx.alert.create({
         data: {
           userId: user.id,
@@ -183,8 +215,12 @@ router.post('/', async (req: AuthedRequest, res) => {
           basePrice,
           timeframe: p.data.type === 'candle_close' ? p.data.timeframe ?? null : null,
           repeat: p.data.repeat,
-          // maxFires only applies to recurring alerts
-          maxFires: p.data.repeat === 'recurring' ? p.data.maxFires ?? null : null,
+          // maxFires only applies to recurring alerts, and every plan has a
+          // ceiling — a blank request means "as many as this plan allows".
+          maxFires: p.data.repeat === 'recurring' ? clampMaxFires(plan, p.data.maxFires) : null,
+          // Blank notes are stored as NULL so the notification never grows an
+          // empty "Note:" line.
+          note: p.data.note || null,
           status: 'active',
           channels,
         },
@@ -211,7 +247,10 @@ export async function resetAlert(req: AuthedRequest, res: Response) {
       if (alert.status !== 'triggered') throw new HttpError(409, 'alert_not_triggered')
 
       const limitError = await alertLimitError(alert.userId, tx)
-      if (limitError) throw new HttpError(402, limitError.error, { limit: limitError.limit })
+      if (limitError) {
+        const { error, ...details } = limitError
+        throw new HttpError(402, error, details)
+      }
 
       const changed = await tx.alert.updateMany({
         where: { id: alert.id, status: 'triggered' },
@@ -245,6 +284,7 @@ export async function patchAlert(req: AuthedRequest, res: Response) {
   const data: any = {}
   if (p.data.target !== undefined) data.target = p.data.target
   if (p.data.status) data.status = p.data.status
+  if (p.data.note !== undefined) data.note = p.data.note || null
   if (!Object.keys(data).length) return res.json(serialize(a))
 
   const changed = await prisma.alert.updateMany({

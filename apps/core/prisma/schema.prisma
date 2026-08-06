@@ -33,6 +33,7 @@ model Alert {
   timeframe      String? // 1m|5m|15m|1h|4h|1d    (candle_close only)
   repeat         String         @default("one_time") // one_time | recurring
   maxFires       Int? // recurring only: stop after this many fires per reset cycle (null = unlimited)
+  note           String? // user's own reminder, included in the notification
   status         String         @default("active") // active | triggered | paused | disarmed
   channels       Json // [{ type: telegram|discord|email, identifier }]
   fireCount      Int            @default(0)
