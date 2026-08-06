@@ -26,4 +26,10 @@ const candle = { ...job, type: 'candle_close' as const, timeframe: '4h' }
 assert.match(buildMessage(candle, 'fa').body, /کندل 4h بالاتر از 100 بسته شد[\s\S]*قیمت بسته‌شدن: 101/)
 assert.match(buildMessage(candle, 'en').body, /4h candle closed above 100[\s\S]*Close price: 101/)
 
+// The note is appended last, trimmed, and skipped entirely when blank.
+assert.match(buildMessage(job, 'fa', '  ۳۰٪ پوزیشن را ببند  ').body, /یادداشت: ۳۰٪ پوزیشن را ببند$/)
+assert.match(buildMessage(job, 'en', 'Close 30% of the position').body, /Note: Close 30% of the position$/)
+assert.ok(!buildMessage(job, 'en', '   ').body.includes('Note:'))
+assert.ok(!buildMessage(job, 'fa', null).body.includes('یادداشت'))
+
 console.log('messages.test: all assertions passed ✓')

@@ -1,9 +1,20 @@
 import type { NotifyJob } from '../queue/notify'
 
-export function buildMessage(j: NotifyJob, language: 'fa' | 'en' = 'fa'): { title: string; body: string } {
+export function buildMessage(
+  j: NotifyJob,
+  language: 'fa' | 'en' = 'fa',
+  note?: string | null,
+): { title: string; body: string } {
   const time = new Date().toLocaleString(language === 'fa' ? 'fa-IR' : 'en-US', {
     timeZone: 'Asia/Tehran',
   })
+
+  // The user's own reminder, last so it reads as the takeaway. Blank notes add
+  // nothing rather than an empty heading.
+  const trimmedNote = note?.trim()
+  const noteBlock = trimmedNote
+    ? `\n\n\u{1F4DD} ${language === 'en' ? 'Note' : 'یادداشت'}: ${trimmedNote}`
+    : ''
 
   if (language === 'en') {
     const dir = j.direction === 'above' ? 'above' : 'below'
@@ -26,7 +37,8 @@ export function buildMessage(j: NotifyJob, language: 'fa' | 'en' = 'fa'): { titl
         `Symbol: ${j.symbol}\n` +
         `Condition: ${condition}\n` +
         `${priceLabel}: ${j.price}\n` +
-        `Time: ${time}`,
+        `Time: ${time}` +
+        noteBlock,
     }
   }
 
@@ -49,7 +61,8 @@ export function buildMessage(j: NotifyJob, language: 'fa' | 'en' = 'fa'): { titl
     `نماد: ${j.symbol}\n` +
     `شرط: ${condition}\n` +
     `${priceLabel}: ${j.price}\n` +
-    `زمان: ${time}`
+    `زمان: ${time}` +
+    noteBlock
 
   return { title: `الرت کی — ${j.symbol}`, body }
 }

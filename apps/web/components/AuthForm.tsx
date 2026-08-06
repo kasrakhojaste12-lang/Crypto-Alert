@@ -8,6 +8,7 @@ import { LangToggle } from '@/components/LangToggle'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
 import { GoogleIcon } from '@/components/BrandIcons'
+import { EyeIcon, EyeOffIcon } from '@/components/Icons'
 import { WelcomeModal } from '@/components/WelcomeModal'
 
 const SITEKEY = process.env.NEXT_PUBLIC_TURNSTILE_SITEKEY
@@ -172,7 +173,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     }
     setBusy(true)
     const messages: Record<string, string> = {
-      email_taken: t('این ایمیل قبلاً ثبت شده است.', 'This email is already registered.'),
+      email_taken: t('این ایمیل قبلاً ذبت شده است.', 'This email is already registered.'),
       invalid_credentials: t('ایمیل یا رمز عبور نادرست است.', 'Invalid email or password.'),
       invalid_input: t('ایمیل معتبر و رمز حداقل ۶ کاراکتر وارد کنید.', 'Enter a valid email and a password of at least 6 characters.'),
       captcha_failed: t('تأیید امنیتی ناموفق بود. دوباره تلاش کنید.', 'Security check failed. Please try again.'),
@@ -246,18 +247,14 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
             />
           </div>
-          <div className="space-y-2">
-            <label className="block text-sm text-slate-400">{t('رمز عبور', 'Password')}</label>
-            <input
-              type="password"
-              dir="ltr"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
-            />
-          </div>
+          <PasswordField
+            label={t('رمز عبور', 'Password')}
+            value={password}
+            onChange={setPassword}
+            autoComplete={isLogin ? 'current-password' : 'new-password'}
+            showLabel={t('نمایش رمز عبور', 'Show password')}
+            hideLabel={t('پنهان کردن رمز عبور', 'Hide password')}
+          />
 
           {isLogin && (
             <div className="text-end">
@@ -268,18 +265,14 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
           )}
 
           {!isLogin && (
-            <div className="space-y-2">
-              <label className="block text-sm text-slate-400">{t('تکرار رمز عبور', 'Confirm password')}</label>
-              <input
-                type="password"
-                dir="ltr"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                minLength={6}
-                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 outline-none focus:border-brand"
-              />
-            </div>
+            <PasswordField
+              label={t('تکرار رمز عبور', 'Confirm password')}
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              autoComplete="new-password"
+              showLabel={t('نمایش رمز عبور', 'Show password')}
+              hideLabel={t('پنهان کردن رمز عبور', 'Hide password')}
+            />
           )}
 
           {SITEKEY && <div ref={boxRef} className="flex justify-center" />}
@@ -306,6 +299,52 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       {premiumUntil && (
         <WelcomeModal until={premiumUntil} onStart={() => router.push('/dashboard')} />
       )}
+    </div>
+  )
+}
+
+// Password input with a reveal toggle. The wrapper is forced to LTR so the eye
+// sits opposite the (always LTR) password text in both languages.
+function PasswordField({
+  label,
+  value,
+  onChange,
+  autoComplete,
+  showLabel,
+  hideLabel,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  autoComplete: string
+  showLabel: string
+  hideLabel: string
+}) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <div className="space-y-2">
+      <label className="block text-sm text-slate-400">{label}</label>
+      <div className="relative" dir="ltr">
+        <input
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          required
+          minLength={6}
+          autoComplete={autoComplete}
+          className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 pe-11 outline-none focus:border-brand"
+        />
+        <button
+          type="button"
+          onClick={() => setVisible((v) => !v)}
+          aria-label={visible ? hideLabel : showLabel}
+          aria-pressed={visible}
+          title={visible ? hideLabel : showLabel}
+          className="absolute inset-y-0 end-0 flex w-11 items-center justify-center text-slate-400 transition hover:text-slate-100"
+        >
+          {visible ? <EyeOffIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+        </button>
+      </div>
     </div>
   )
 }

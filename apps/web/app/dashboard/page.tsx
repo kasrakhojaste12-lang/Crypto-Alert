@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, type ComponentType } from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { api, type ApiError } from '@/lib/api'
@@ -8,14 +8,26 @@ import { useLang, useT } from '@/lib/i18n'
 import { Shell } from '@/components/Shell'
 import { CoinIcon } from '@/components/CoinIcon'
 import { TelegramBanner } from '@/components/TelegramBanner'
+import { TelegramIcon, DiscordIcon, EmailIcon } from '@/components/BrandIcons'
+import { ArrowUpIcon, ArrowDownIcon, BellIcon } from '@/components/Icons'
 import { describeAlert, fmtNum, baseOf, statusInfo, repeatLabel, type AlertShape } from '@/lib/format'
 
 interface Alert extends AlertShape {
   id: string
+  note?: string | null
   channels: { type: string; identifier: string }[]
 }
 
-const CHANNEL_ICON: Record<string, string> = { telegram: '✈️', discord: '🎮', email: '✉️' }
+// 'above' and 'below' match on direction, 'triggered' on status. They are one
+// control because the user thinks of them as one question: which alerts do I
+// want to look at right now?
+type AlertFilter = 'all' | 'above' | 'below' | 'triggered'
+
+const CHANNEL_ICON: Record<string, ComponentType<{ className?: string }>> = {
+  telegram: TelegramIcon,
+  discord: DiscordIcon,
+  email: EmailIcon,
+}
 
 export default function DashboardPage() {
   return (
@@ -35,6 +47,7 @@ function Dashboard() {
   })
   const [resetting, setResetting] = useState<string | null>(null)
   const [resetError, setResetError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<AlertFilter>('all')
 
   async function toggle(a: Alert) {
     const status = a.status === 'paused' ? 'active' : 'paused'
@@ -68,6 +81,18 @@ function Dashboard() {
   const used = user?.activeAlerts ?? 0
   const limit = user?.alertLimit ?? 3
   const paid = user?.plan === 'paid'
+
+  const all = alerts ?? []
+  const matches = (a: Alert, f: AlertFilter) =>
+    f === 'all' ? true : f === 'triggered' ? a.status === 'triggered' : a.direction === f
+  const visible = all.filter((a) => matches(a, filter))
+
+  const FILTERS: { value: AlertFilter; label: string; icon?: ComponentType<{ className?: string }> }[] = [
+    { value: 'all', label: t('همه', 'All') },
+    { value: 'above', label: t('بالاتر از', 'Above'), icon: ArrowUpIcon },
+    { value: 'below', label: t('پایین‌تر از', 'Below'), icon: ArrowDownIcon },
+    { value: 'triggered', label: t('اجرا شده', 'Triggered'), icon: BellIcon },
+  ]
 
   return (
     <div className="space-y-6">
@@ -111,20 +136,60 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Filter card — only useful once there is something to filter */}
+      {all.length > 0 && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-2">
+          <p className="text-sm text-slate-400">{t('فیلتر هشدارها', 'Filter alerts')}</p>
+          <div role="group" aria-label={t('فیلتر هشدارها', 'Filter alerts')} className="flex flex-wrap gap-2">
+            {FILTERS.map((f) => {
+              const Icon = f.icon
+              const on = filter === f.value
+              const count = all.filter((a) => matches(a, f.value)).length
+              return (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setFilter(f.value)}
+                  aria-pressed={on}
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm transition ${
+                    on
+                      ? 'border-brand bg-brand/15 font-semibold text-brand'
+                      : 'border-slate-700 text-slate-300 hover:border-slate-600 hover:text-white'
+                  }`}
+                >
+                  {Icon && <Icon className="h-3.5 w-3.5" />}
+                  <span>{f.label}</span>
+                  <span className="rounded-full bg-slate-800 px-1.5 text-xs text-slate-400">{fmtNum(count, lang)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Alerts list */}
       {resetError && <p role="alert" className="text-sm text-rose-400">{resetError}</p>}
       {!alerts ? (
         <p className="text-slate-500 text-sm">{t('در حال بارگذاری…', 'Loading…')}</p>
-      ) : alerts.length === 0 ? (
+      ) : all.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-800 p-10 text-center">
           <p className="text-slate-400">{t('هنوز هشداری نساخته‌اید.', "You haven't created any alerts yet.")}</p>
           <Link href="/alerts/new" className="text-brand text-sm">
             {t('اولین هشدار خود را بسازید ←', 'Create your first alert →')}
           </Link>
         </div>
+      ) : visible.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-800 p-10 text-center">
+          <p className="text-slate-400">
+            {t('هشداری با این فیلتر وجود ندارد.', 'No alerts match this filter.')}
+          </p>
+          <button onClick={() => setFilter('all')} className="text-brand text-sm">
+            {t('نمایش همه', 'Show all')}
+          </button>
+        </div>
       ) : (
         <div className="space-y-3">
-          {alerts.map((a) => {
+          {visible.map((a) => {
             const st = statusInfo(a.status, lang)
             const base = baseOf(a.symbol)
             return (
@@ -135,6 +200,10 @@ function Dashboard() {
                 <CoinIcon base={base} size={36} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
+                    <DirectionBadge
+                      direction={a.direction}
+                      label={a.direction === 'above' ? t('بالاتر از', 'Above') : t('پایین‌تر از', 'Below')}
+                    />
                     <span className="font-semibold">{a.symbol}</span>
                     {a.market === 'futures' && (
                       <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400">
@@ -144,10 +213,27 @@ function Dashboard() {
                     <span className={`text-xs px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
                   </div>
                   <p className="text-sm text-slate-400 mt-0.5">{describeAlert(a, lang)}</p>
+                  {a.note && (
+                    <p className="mt-1 flex items-start gap-1.5 text-xs text-slate-400">
+                      <span aria-hidden="true">📝</span>
+                      <span className="whitespace-pre-wrap break-words">{a.note}</span>
+                    </p>
+                  )}
                   <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
                     <span>{repeatLabel(a.repeat, lang, a.maxFires)}</span>
                     <span>·</span>
-                    <span>{a.channels.map((c) => CHANNEL_ICON[c.type] ?? c.type).join(' ')}</span>
+                    <span className="flex items-center gap-1.5">
+                      {a.channels.map((c) => {
+                        const Icon = CHANNEL_ICON[c.type]
+                        return Icon ? (
+                          <span key={c.type} title={c.type} className="inline-flex">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                        ) : (
+                          <span key={c.type}>{c.type}</span>
+                        )
+                      })}
+                    </span>
                   </div>
                 </div>
                 <div className={`flex gap-2 text-xs ${a.status === 'triggered' ? 'items-center' : 'flex-col'}`}>
@@ -180,5 +266,22 @@ function Dashboard() {
         </div>
       )}
     </div>
+  )
+}
+
+function DirectionBadge({ direction, label }: { direction: 'above' | 'below'; label: string }) {
+  const up = direction === 'above'
+  const Icon = up ? ArrowUpIcon : ArrowDownIcon
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      role="img"
+      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+        up ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </span>
   )
 }

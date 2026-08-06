@@ -56,11 +56,12 @@ function makeResponse() {
   }
 }
 
-async function callReset(alert: any, count = 0, paid = false) {
+// `plan` is the subscription row's plan string; null = no active subscription.
+async function callReset(alert: any, count = 0, plan: string | null = null) {
   let updateData: any
   delegate.findFirst = async () => alert
   delegate.count = async () => count
-  subscriptions.findFirst = async () => (paid ? {} : null)
+  subscriptions.findFirst = async () => (plan ? { plan } : null)
   delegate.updateMany = async ({ data }: any) => {
     updateData = data
     return { count: alert.status === 'triggered' ? 1 : 0 }
@@ -96,12 +97,32 @@ const conflict = await callReset({ ...base, status: 'active' })
 assert.equal(conflict.response.statusCode, 409)
 assert.equal(conflict.response.body.error, 'alert_not_triggered')
 
-const freeLimit = await callReset(base, 3)
+// Each tier stops at its own ceiling, and only gold — with nothing left to
+// upgrade to — is told to delete an alert instead of to upgrade.
+const freeLimit = await callReset(base, 5)
 assert.equal(freeLimit.response.statusCode, 402)
-assert.deepEqual(freeLimit.response.body, { error: 'upgrade_required', limit: 3 })
-const paidLimit = await callReset(base, 30, true)
-assert.equal(paidLimit.response.statusCode, 402)
-assert.deepEqual(paidLimit.response.body, { error: 'limit_reached', limit: 30 })
+assert.deepEqual(freeLimit.response.body, {
+  error: 'upgrade_required',
+  limit: 5,
+  plan: 'free',
+  nextPlan: 'pro',
+})
+const proLimit = await callReset(base, 20, 'pro')
+assert.equal(proLimit.response.statusCode, 402)
+assert.deepEqual(proLimit.response.body, {
+  error: 'upgrade_required',
+  limit: 20,
+  plan: 'pro',
+  nextPlan: 'gold',
+})
+assert.equal((await callReset(base, 19, 'pro')).response.statusCode, 200, 'below the cap the reset goes through')
+const goldLimit = await callReset(base, 100, 'gold')
+assert.equal(goldLimit.response.statusCode, 402)
+assert.deepEqual(goldLimit.response.body, { error: 'limit_reached', limit: 100, plan: 'gold' })
+// Launch-campaign subscriptions predate tiers and say 'paid'.
+const legacyLimit = await callReset(base, 100, 'paid')
+assert.deepEqual(legacyLimit.response.body, { error: 'limit_reached', limit: 100, plan: 'gold' })
+assert.equal((await callReset(base, 30, 'paid')).response.statusCode, 200, 'legacy paid users get the gold ceiling')
 
 delegate.findFirst = async () => base
 for (const status of ['paused', 'active']) {
