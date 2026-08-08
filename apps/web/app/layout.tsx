@@ -6,6 +6,7 @@ import type { Metadata } from 'next'
 import Script from 'next/script'
 import { LangProvider } from '@/lib/i18n'
 import { SupportBubble } from '@/components/SupportBubble'
+import ParticlesBackground from '@/components/ParticlesBackground'
 
 export const metadata: Metadata = {
   title: 'الرت کی — Alert Key',
@@ -30,6 +31,7 @@ gtag('js', new Date());
 gtag('config', 'G-BMCYYP1SZ2');
 `}</Script>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+        <ParticlesBackground />
         <LangProvider>
           {children}
           <SupportBubble />
