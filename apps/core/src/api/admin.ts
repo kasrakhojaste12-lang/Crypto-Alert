@@ -1,11 +1,10 @@
 import { Router, type Response, type NextFunction } from 'express'
 import { prisma } from '../lib/db'
 import { requireAuth, type AuthedRequest } from '../lib/auth'
+import { normalizePlan, type PlanId } from '../lib/plans'
 
-// ponytail: env allowlist instead of a User.isAdmin column — no migration, and
-// the admin set changes about once a year. Add the column when admins need to
-// be managed from the UI rather than by editing .env.
-// Empty/unset ADMIN_EMAILS = nobody is an admin (safe default).
+// Admin allowlist lives in ADMIN_EMAILS (comma-separated). Empty/unset = nobody
+// is admin. No migration needed; the set changes ~once a year.
 const adminEmails = () =>
   new Set(
     (process.env.ADMIN_EMAILS || '')
@@ -43,6 +42,7 @@ export async function stats(_req: AuthedRequest, res: Response) {
     new30d,
     telegramLinked,
     premium,
+    byPlanRaw,
     byStatus,
     byType,
     byMarket,
@@ -60,12 +60,13 @@ export async function stats(_req: AuthedRequest, res: Response) {
     prisma.user.count({ where: { createdAt: { gte: ago(30) } } }),
     prisma.user.count({ where: { telegramChatId: { not: null } } }),
     prisma.user.count({ where: { subscriptions: { some: live } } }),
+    // Plan breakdown — normalize legacy 'paid' -> 'gold' in JS so the query
+    // stays simple and survives any future plan renames without a migration.
+    prisma.user.groupBy({ by: ['plan'], _count: { _all: true } }),
     prisma.alert.groupBy({ by: ['status'], _count: { _all: true } }),
     prisma.alert.groupBy({ by: ['type'], _count: { _all: true } }),
-    // ponytail: .catch guards the split-brain window — if this deploys before the
-    // futures migration lands, the client rejects `market` as unknown; degrade the
-    // one breakdown to empty instead of 500-ing the whole panel. Drop the catch
-    // once Alert.market is in the committed schema everywhere.
+    // .catch guards the split-brain window — if this deploys before the
+    // futures migration lands, degrade to empty instead of 500-ing the panel.
     prisma.alert.groupBy({ by: ['market'], _count: { _all: true } }).catch(() => [] as any[]),
     prisma.alert.groupBy({
       by: ['symbol'],
@@ -81,13 +82,20 @@ export async function stats(_req: AuthedRequest, res: Response) {
     prisma.notification.count(),
     prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: { id: true, email: true, plan: true, createdAt: true },
+      take: 15,
+      select: { id: true, email: true, plan: true, createdAt: true, telegramChatId: true },
     }),
   ])
 
+  // Merge legacy 'paid' into 'gold'
+  const byPlan: Record<PlanId, number> = { free: 0, pro: 0, gold: 0 }
+  for (const row of byPlanRaw) {
+    const normalized = normalizePlan(row.plan)
+    byPlan[normalized] = (byPlan[normalized] ?? 0) + row._count._all
+  }
+
   res.json({
-    users: { total, new24h, new7d, new30d, telegramLinked, premium },
+    users: { total, new24h, new7d, new30d, telegramLinked, premium, byPlan },
     alerts: {
       byStatus: tally(byStatus, 'status'),
       byType: tally(byType, 'type'),
@@ -100,7 +108,12 @@ export async function stats(_req: AuthedRequest, res: Response) {
       revenue30dRial: revenue30d._sum.amount ?? 0,
     },
     notifications: { last24h: tally(notif24h, 'status'), total: notifTotal },
-    recentUsers,
+    // Never leak passwordHash; telegramChatId becomes a boolean flag.
+    recentUsers: recentUsers.map(({ telegramChatId, plan, ...u }) => ({
+      ...u,
+      plan: normalizePlan(plan),
+      hasTelegram: telegramChatId !== null,
+    })),
   })
 }
 
