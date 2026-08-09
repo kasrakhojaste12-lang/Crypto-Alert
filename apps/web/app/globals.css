@@ -4,7 +4,8 @@
 
 /*
  * Theming: the `slate` scale is CSS-variable-backed (see tailwind.config.ts).
- * Dark is the default. A `.light` class on <html> mirrors the ramp (50↔950).
+ * Dark is the default. A `.light` class on <html> mirrors the ramp (50↔950),
+ * so every existing `slate-*` utility flips with no component changes.
  */
 :root {
   color-scheme: dark;
@@ -21,6 +22,7 @@
   --s-950: 2 6 23;
 }
 
+/* Light theme = the same ramp mirrored around 500 (slate-950 renders as slate-50, etc.) */
 .light {
   color-scheme: light;
   --s-50: 2 6 23;
@@ -38,10 +40,8 @@
 
 body {
   @apply bg-slate-950 text-slate-100 antialiased;
-  background-image:
-    radial-gradient(ellipse 90rem 55rem at 75% -15%, rgba(16,185,129,0.07), transparent),
-    radial-gradient(ellipse 60rem 50rem at 0%   20%, rgba(59,130,246,0.05), transparent),
-    radial-gradient(ellipse 45rem 40rem at 100% 85%, rgba(139,92,246,0.04), transparent);
+  background-image: radial-gradient(60rem 60rem at 80% -10%, rgba(16, 185, 129, 0.08), transparent),
+    radial-gradient(50rem 50rem at 0% 0%, rgba(59, 130, 246, 0.06), transparent);
   background-attachment: fixed;
 }
 
@@ -126,9 +126,20 @@ input[type='number'] {
   text-align: right;
 }
 
-/* Light-mode pin-downs */
-.light .text-slate-950   { color: rgb(2 6 23); }
+/*
+ * Pin the handful of utilities the ramp-mirror would get wrong in light mode:
+ * - text-slate-950 is only ever button/banner ink on bg-brand → must stay dark.
+ * - text-white is only ever "strong foreground" hover/active → must go dark.
+ * - text-brand (emerald) needs a darker shade for readable contrast on light.
+ */
+.light .text-slate-950 {
+  color: rgb(2 6 23);
+}
 .light .text-white,
-.light .hover\:text-white:hover { color: rgb(15 23 42); }
+.light .hover\:text-white:hover {
+  color: rgb(15 23 42);
+}
 .light .text-brand,
-.light .hover\:text-brand:hover { color: #047857; }
+.light .hover\:text-brand:hover {
+  color: #047857;
+}
