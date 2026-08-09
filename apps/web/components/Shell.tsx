@@ -5,7 +5,7 @@ import { useUser } from '@/lib/useUser'
 import { useT } from '@/lib/i18n'
 import { Nav } from './Nav'
 
-export function Shell({ children }: { children: React.ReactNode }) {
+export function Shell({ children, belowHeader }: { children: React.ReactNode; belowHeader?: React.ReactNode }) {
   const { user, isLoading, error } = useUser()
   const router = useRouter()
   const t = useT()
@@ -22,7 +22,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
       <Nav user={user} />
-      <main className="mx-auto max-w-3xl px-4 py-8">{children}</main>
+      {belowHeader}
+      <main className="mx-auto max-w-4xl px-4 py-8">{children}</main>
     </div>
   )
 }

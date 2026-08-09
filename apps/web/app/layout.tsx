@@ -1,12 +1,16 @@
 import '@fontsource/vazirmatn/400.css'
 import '@fontsource/vazirmatn/500.css'
 import '@fontsource/vazirmatn/700.css'
+import '@fontsource/space-grotesk/400.css'
+import '@fontsource/space-grotesk/500.css'
+import '@fontsource/space-grotesk/700.css'
 import './globals.css'
 import type { Metadata } from 'next'
 import Script from 'next/script'
 import { LangProvider } from '@/lib/i18n'
 import { SupportBubble } from '@/components/SupportBubble'
 import ParticlesBackground from '@/components/ParticlesBackground'
+import { ScrollProgress } from '@/components/ScrollProgress'
 
 export const metadata: Metadata = {
   title: 'الرت کی — Alert Key',
@@ -32,6 +36,7 @@ gtag('config', 'G-BMCYYP1SZ2');
 `}</Script>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
         <ParticlesBackground />
+        <ScrollProgress />
         <LangProvider>
           {children}
           <SupportBubble />

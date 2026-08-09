@@ -42,7 +42,7 @@ export default function ParticlesBackground() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas!.getContext('2d')
     if (!ctx) return
 
     const state = stateRef.current
@@ -65,8 +65,8 @@ export default function ParticlesBackground() {
     }
 
     function resize() {
-      canvas.width  = window.innerWidth
-      canvas.height = window.innerHeight
+      canvas!.width  = window.innerWidth
+      canvas!.height = window.innerHeight
     }
 
     function init() {
@@ -75,8 +75,8 @@ export default function ParticlesBackground() {
       for (let i = 0; i < BASE_COUNT; i++) {
         state.particles.push(
           makeParticle(
-            Math.random() * canvas.width,
-            Math.random() * canvas.height,
+            Math.random() * canvas!.width,
+            Math.random() * canvas!.height,
           ),
         )
       }
@@ -89,11 +89,17 @@ export default function ParticlesBackground() {
       // ripple effect
       state.ripples.push({ x, y, r: 0, alpha: 0.6 })
 
-      // spawn a cluster of dots around the click
-      const toSpawn = Math.min(
-        5 + Math.floor(Math.random() * 4),           // 5-8 per click
-        BASE_COUNT + MAX_CLICK_PARTICLES - state.particles.length,
-      )
+      // spawn a cluster of dots around the click. Instead of capping at 60
+      // and refusing to spawn any more (the old bug — clicking eventually
+      // did nothing), evict the oldest click-spawned dots to make room, so
+      // there's always a rolling window of the most recent clicks. The first
+      // BASE_COUNT entries are the ambient dots and are never touched.
+      const toSpawn = 5 + Math.floor(Math.random() * 4) // 5-8 per click
+      const capacity = BASE_COUNT + MAX_CLICK_PARTICLES
+      const overflow = state.particles.length + toSpawn - capacity
+      if (overflow > 0) {
+        state.particles.splice(BASE_COUNT, Math.min(overflow, state.particles.length - BASE_COUNT))
+      }
       for (let i = 0; i < toSpawn; i++) {
         const spread = 18
         state.particles.push(
@@ -108,7 +114,7 @@ export default function ParticlesBackground() {
 
     // ── animation loop ─────────────────────────────────────────────────────
     function tick() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx!.clearRect(0, 0, canvas!.width, canvas!.height)
       const { pc, lc } = getColors()
       const pts = state.particles
 
@@ -134,14 +140,14 @@ export default function ParticlesBackground() {
 
         p.x += p.vx
         p.y += p.vy
-        if (p.x < 0 || p.x > canvas.width)  p.vx *= -1
-        if (p.y < 0 || p.y > canvas.height) p.vy *= -1
+        if (p.x < 0 || p.x > canvas!.width)  p.vx *= -1
+        if (p.y < 0 || p.y > canvas!.height) p.vy *= -1
 
         // draw dot
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-        ctx.fillStyle = `${pc}${p.alpha.toFixed(2)})`
-        ctx.fill()
+        ctx!.beginPath()
+        ctx!.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx!.fillStyle = `${pc}${p.alpha.toFixed(2)})`
+        ctx!.fill()
       }
 
       // draw connecting lines
@@ -152,12 +158,12 @@ export default function ParticlesBackground() {
           const d  = Math.sqrt(dx * dx + dy * dy)
           if (d < MAX_DIST) {
             const alpha = ((1 - d / MAX_DIST) * 0.28).toFixed(3)
-            ctx.beginPath()
-            ctx.moveTo(pts[i].x, pts[i].y)
-            ctx.lineTo(pts[j].x, pts[j].y)
-            ctx.strokeStyle = `${lc}${alpha})`
-            ctx.lineWidth   = 0.7
-            ctx.stroke()
+            ctx!.beginPath()
+            ctx!.moveTo(pts[i].x, pts[i].y)
+            ctx!.lineTo(pts[j].x, pts[j].y)
+            ctx!.strokeStyle = `${lc}${alpha})`
+            ctx!.lineWidth   = 0.7
+            ctx!.stroke()
           }
         }
       }
@@ -171,11 +177,11 @@ export default function ParticlesBackground() {
           state.ripples.splice(i, 1)
           continue
         }
-        ctx.beginPath()
-        ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2)
-        ctx.strokeStyle = `${lc}${rp.alpha.toFixed(3)})`
-        ctx.lineWidth   = 1.2
-        ctx.stroke()
+        ctx!.beginPath()
+        ctx!.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2)
+        ctx!.strokeStyle = `${lc}${rp.alpha.toFixed(3)})`
+        ctx!.lineWidth   = 1.2
+        ctx!.stroke()
       }
 
       state.raf = requestAnimationFrame(tick)
