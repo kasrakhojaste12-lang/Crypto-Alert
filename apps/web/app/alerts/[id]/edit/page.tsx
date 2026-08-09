@@ -7,6 +7,7 @@ import { api } from '@/lib/api'
 import { useLang, useT } from '@/lib/i18n'
 import { Shell } from '@/components/Shell'
 import { CoinIcon } from '@/components/CoinIcon'
+import { CoinTicker } from '@/components/CoinTicker'
 import { describeAlert, baseOf, type AlertShape } from '@/lib/format'
 
 interface Alert extends AlertShape {
@@ -19,7 +20,7 @@ const NOTE_MAX = 500
 export default function EditAlertPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   return (
-    <Shell>
+    <Shell belowHeader={<CoinTicker />}>
       <EditAlert id={id} />
     </Shell>
   )

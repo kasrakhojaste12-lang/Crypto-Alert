@@ -5,7 +5,7 @@ export interface ApiError extends Error {
   data: any
 }
 
-export async function api(path: string, opts: RequestInit = {}) {
+export async function api<T = any>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     credentials: 'include',
     headers: { 'content-type': 'application/json', ...(opts.headers || {}) },

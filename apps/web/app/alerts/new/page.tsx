@@ -2,12 +2,13 @@
 import Link from 'next/link'
 import { Shell } from '@/components/Shell'
 import { AlertForm } from '@/components/AlertForm'
+import { CoinTicker } from '@/components/CoinTicker'
 import { useT } from '@/lib/i18n'
 
 export default function NewAlertPage() {
   const t = useT()
   return (
-    <Shell>
+    <Shell belowHeader={<CoinTicker />}>
       <div className="space-y-6">
         <div className="flex items-center gap-2 text-sm text-slate-400">
           <Link href="/dashboard" className="hover:text-white">
