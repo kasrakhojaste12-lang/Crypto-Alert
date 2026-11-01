@@ -18,6 +18,32 @@ const BASE_COUNT = 70
 const MAX_DIST   = 130
 const MAX_CLICK_PARTICLES = 60   // cap so the page never gets sluggish
 
+// Only a click on truly empty page background spawns particles. The window
+// click listener receives events that bubble up from buttons, links, cards and
+// content sections alike, so the handler inspects e.target and rejects clicks
+// that landed inside any of these. closest() walks up the ancestors, so clicks
+// on children (an icon inside a link, text inside a card) are caught too.
+// [data-no-particle] is the escape hatch for anything the selectors miss.
+const IGNORE_SELECTOR = [
+  'a',
+  'button',
+  'input',
+  'textarea',
+  'select',
+  'label',
+  '[role="button"]',
+  'header',
+  'nav',
+  'footer',
+  'section',
+  'form',
+  '.glass',
+  '[data-no-particle]',
+].join(', ')
+
+// A press that travels this far is a drag (e.g. selecting text), not a tap.
+const DRAG_THRESHOLD_PX = 6
+
 function getColors(): { pc: string; lc: string } {
   const isLight = document.documentElement.classList.contains('light')
   return isLight
@@ -42,12 +68,15 @@ export default function ParticlesBackground() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas!.getContext('2d')
+    const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     const state = stateRef.current
 
     // ── helpers ────────────────────────────────────────────────────────────
+    // These are const arrows (not hoisted function declarations) so the
+    // non-null narrowing of canvas/ctx above carries into their bodies without
+    // a single non-null assertion.
     function makeParticle(x: number, y: number, burst = 0): Particle {
       const angle = Math.random() * Math.PI * 2
       const speed = burst > 0
@@ -64,26 +93,62 @@ export default function ParticlesBackground() {
       }
     }
 
-    function resize() {
-      canvas!.width  = window.innerWidth
-      canvas!.height = window.innerHeight
+    const resize = () => {
+      canvas.width  = window.innerWidth
+      canvas.height = window.innerHeight
     }
 
-    function init() {
+    const init = () => {
       resize()
       state.particles = []
       for (let i = 0; i < BASE_COUNT; i++) {
         state.particles.push(
           makeParticle(
-            Math.random() * canvas!.width,
-            Math.random() * canvas!.height,
+            Math.random() * canvas.width,
+            Math.random() * canvas.height,
           ),
         )
       }
     }
 
+    // ── press tracking (mouse and touch via Pointer Events) ────────────────
+    // `click` fires for both mouse and touch taps, so one handler serves both;
+    // pointerdown records where the gesture started and whether text was
+    // already selected, so the click can tell a deliberate tap on empty space
+    // from a drag or a deselection click.
+    let downX = 0
+    let downY = 0
+    let hadSelection = false
+
+    const onPointerDown = (e: PointerEvent) => {
+      downX = e.clientX
+      downY = e.clientY
+      const sel = window.getSelection()
+      hadSelection = sel !== null && !sel.isCollapsed
+    }
+
+    const onContent = (target: EventTarget | null): boolean =>
+      target instanceof Element && target.closest(IGNORE_SELECTOR) !== null
+
     // ── click handler ──────────────────────────────────────────────────────
-    function onClick(e: MouseEvent) {
+    const onClick = (e: MouseEvent) => {
+      // Empty-space-only rule: every check below runs BEFORE the ripple or any
+      // particle is created.
+
+      // 1. Clicks on interactive elements or content bubble up to window but
+      //    are not background clicks.
+      if (onContent(e.target)) return
+
+      // 2. A gesture that moved is a drag — selecting text or scrubbing the
+      //    page — not a tap.
+      if (Math.hypot(e.clientX - downX, e.clientY - downY) > DRAG_THRESHOLD_PX) return
+
+      // 3. Text selection: the live selection is non-collapsed after a
+      //    select-drag; hadSelection also covers a click that only dismisses
+      //    an older selection (the press clears it before click fires).
+      const sel = window.getSelection()
+      if (hadSelection || (sel !== null && !sel.isCollapsed)) return
+
       const { clientX: x, clientY: y } = e
 
       // ripple effect
@@ -113,8 +178,8 @@ export default function ParticlesBackground() {
     }
 
     // ── animation loop ─────────────────────────────────────────────────────
-    function tick() {
-      ctx!.clearRect(0, 0, canvas!.width, canvas!.height)
+    const tick = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
       const { pc, lc } = getColors()
       const pts = state.particles
 
@@ -140,14 +205,14 @@ export default function ParticlesBackground() {
 
         p.x += p.vx
         p.y += p.vy
-        if (p.x < 0 || p.x > canvas!.width)  p.vx *= -1
-        if (p.y < 0 || p.y > canvas!.height) p.vy *= -1
+        if (p.x < 0 || p.x > canvas.width)  p.vx *= -1
+        if (p.y < 0 || p.y > canvas.height) p.vy *= -1
 
         // draw dot
-        ctx!.beginPath()
-        ctx!.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-        ctx!.fillStyle = `${pc}${p.alpha.toFixed(2)})`
-        ctx!.fill()
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fillStyle = `${pc}${p.alpha.toFixed(2)})`
+        ctx.fill()
       }
 
       // draw connecting lines
@@ -158,12 +223,12 @@ export default function ParticlesBackground() {
           const d  = Math.sqrt(dx * dx + dy * dy)
           if (d < MAX_DIST) {
             const alpha = ((1 - d / MAX_DIST) * 0.28).toFixed(3)
-            ctx!.beginPath()
-            ctx!.moveTo(pts[i].x, pts[i].y)
-            ctx!.lineTo(pts[j].x, pts[j].y)
-            ctx!.strokeStyle = `${lc}${alpha})`
-            ctx!.lineWidth   = 0.7
-            ctx!.stroke()
+            ctx.beginPath()
+            ctx.moveTo(pts[i].x, pts[i].y)
+            ctx.lineTo(pts[j].x, pts[j].y)
+            ctx.strokeStyle = `${lc}${alpha})`
+            ctx.lineWidth   = 0.7
+            ctx.stroke()
           }
         }
       }
@@ -177,11 +242,11 @@ export default function ParticlesBackground() {
           state.ripples.splice(i, 1)
           continue
         }
-        ctx!.beginPath()
-        ctx!.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2)
-        ctx!.strokeStyle = `${lc}${rp.alpha.toFixed(3)})`
-        ctx!.lineWidth   = 1.2
-        ctx!.stroke()
+        ctx.beginPath()
+        ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2)
+        ctx.strokeStyle = `${lc}${rp.alpha.toFixed(3)})`
+        ctx.lineWidth   = 1.2
+        ctx.stroke()
       }
 
       state.raf = requestAnimationFrame(tick)
@@ -192,11 +257,13 @@ export default function ParticlesBackground() {
     tick()
 
     window.addEventListener('resize', resize)
+    window.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('click',  onClick)
 
     return () => {
       cancelAnimationFrame(state.raf)
       window.removeEventListener('resize', resize)
+      window.removeEventListener('pointerdown', onPointerDown)
       window.removeEventListener('click',  onClick)
     }
   }, [])

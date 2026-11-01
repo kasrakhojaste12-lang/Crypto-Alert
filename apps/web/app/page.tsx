@@ -6,7 +6,6 @@ import { fmtNum } from '@/lib/format'
 import { LangToggle } from '@/components/LangToggle'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
-import { CoinTicker } from '@/components/CoinTicker'
 import { MobileMenu } from '@/components/MobileMenu'
 import { TelegramBanner } from '@/components/TelegramBanner'
 import { CampaignBanner } from '@/components/CampaignBanner'
@@ -189,13 +188,12 @@ export default function Home() {
         </div>
       </header>
 
-      <CoinTicker />
       <CampaignBanner />
 
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
         <div className="crypto-grid absolute inset-0 -z-10 h-[32rem]" />
-        <div className="mx-auto max-w-3xl px-4 pt-20 pb-14 text-center">
+        <div className="mx-auto max-w-3xl px-4 pt-16 pb-14 text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/5 px-3 py-1 text-xs font-medium text-brand">
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/60" />
